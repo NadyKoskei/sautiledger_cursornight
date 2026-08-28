@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { AskAssistant } from './components/AskAssistant.jsx';
 import { BottomNav } from './components/BottomNav.jsx';
 import { useAuth } from './context/AuthContext.jsx';
 import Assistant from './pages/Assistant.jsx';
@@ -32,6 +33,7 @@ function Protected({ children }) {
   return (
     <>
       {children}
+      <AskAssistant />
       <BottomNav />
     </>
   );

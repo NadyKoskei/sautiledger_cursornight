@@ -84,7 +84,7 @@ export default function Dashboard() {
                 icon={HandCoins}
                 label="Collected"
                 value={money(totals.collected, { currency, compact: true })}
-                tone="clay"
+                tone="grove"
               />
             </>
           )}

@@ -208,7 +208,7 @@ function ConfirmationCard({ receipt, currency, onUndo }) {
             <button
               type="button"
               onClick={onUndo}
-              className="flex items-center gap-1 text-xs font-semibold text-clay"
+              className="flex items-center gap-1 text-xs font-semibold text-dust transition hover:text-ink"
             >
               <Undo2 size={14} />
               Undo

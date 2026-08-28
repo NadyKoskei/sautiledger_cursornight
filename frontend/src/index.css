@@ -10,13 +10,12 @@ body,
 }
 
 html {
-  background: #1f6b45;
+  @apply bg-grove;
 }
 
 body {
   margin: 0;
-  background: #f4efe4;
-  color: #1c1915;
+  @apply bg-paper text-ink;
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
   overscroll-behavior: none;
@@ -35,5 +34,5 @@ input[type='date'] {
 }
 
 ::selection {
-  background: rgba(31, 107, 69, 0.18);
+  @apply bg-grove/20;
 }

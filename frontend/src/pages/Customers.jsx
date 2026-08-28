@@ -110,7 +110,7 @@ export default function Customers() {
                   <div className="flex shrink-0 items-center gap-1">
                     <span
                       className={`font-display text-base font-semibold ${
-                        customer.balance > 0 ? 'text-clay' : 'text-dust'
+                        customer.balance > 0 ? 'text-warn' : 'text-dust'
                       }`}
                     >
                       {money(customer.balance, { currency })}
@@ -200,13 +200,13 @@ function CustomerSheet({ customerId, currency, onClose, onChanged }) {
         <Skeleton className="h-40" />
       ) : (
         <div className="space-y-5">
-          <div className="rounded-2xl bg-clay-light px-4 py-3">
-            <p className="text-xs uppercase tracking-wide text-clay">Current balance</p>
-            <p className="font-display text-2xl font-semibold text-clay">
+          <div className="rounded-2xl bg-warn-light px-4 py-3">
+            <p className="text-xs uppercase tracking-wide text-warn">Current balance</p>
+            <p className="font-display text-2xl font-semibold text-warn">
               {money(detail.customer.balance, { currency })}
             </p>
             {detail.customer.phone && (
-              <a href={`tel:${detail.customer.phone}`} className="text-xs text-clay underline">
+              <a href={`tel:${detail.customer.phone}`} className="text-xs text-warn underline">
                 {detail.customer.phone}
               </a>
             )}
@@ -253,7 +253,7 @@ function CustomerSheet({ customerId, currency, onClose, onChanged }) {
                 {detail.history.map((row) => (
                   <li
                     key={row.id}
-                    className="flex items-center justify-between rounded-xl bg-white px-3 py-2 ring-1 ring-line/60"
+                    className="flex items-center justify-between rounded-xl bg-card px-3 py-2 ring-1 ring-line/60"
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">

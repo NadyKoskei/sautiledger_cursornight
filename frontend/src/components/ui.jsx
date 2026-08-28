@@ -9,7 +9,7 @@ export function Button({
 }) {
   const variants = {
     primary: 'bg-grove text-white hover:bg-grove-dark disabled:bg-grove/50',
-    secondary: 'bg-white text-ink ring-1 ring-line hover:bg-paper',
+    secondary: 'bg-card text-ink ring-1 ring-line hover:bg-paper',
     ghost: 'text-grove hover:bg-grove-light',
     danger: 'bg-danger text-white hover:brightness-95',
   };
@@ -53,7 +53,7 @@ export function Field({ label, hint, error, children, htmlFor }) {
 export function Input({ className = '', ...props }) {
   return (
     <input
-      className={`h-12 w-full rounded-2xl border border-line bg-white px-4 text-[15px] text-ink
+      className={`h-12 w-full rounded-2xl border border-line bg-card px-4 text-[15px] text-ink
         placeholder:text-dust/70 focus:border-grove focus:outline-none focus:ring-2 focus:ring-grove/20
         ${className}`}
       {...props}
@@ -64,7 +64,7 @@ export function Input({ className = '', ...props }) {
 export function Select({ className = '', children, ...props }) {
   return (
     <select
-      className={`h-12 w-full appearance-none rounded-2xl border border-line bg-white px-4 text-[15px]
+      className={`h-12 w-full appearance-none rounded-2xl border border-line bg-card px-4 text-[15px]
         text-ink focus:border-grove focus:outline-none focus:ring-2 focus:ring-grove/20 ${className}`}
       {...props}
     >
@@ -100,7 +100,7 @@ export function SegmentedControl({ options, value, onChange, size = 'md' }) {
             type="button"
             onClick={() => onChange(option.value)}
             className={`flex-1 rounded-xl px-3 py-2 font-semibold transition ${
-              active ? 'bg-white text-ink shadow-sm' : 'text-dust hover:text-ink'
+              active ? 'bg-card text-ink shadow-sm' : 'text-dust hover:text-ink'
             }`}
           >
             {option.label}
@@ -116,7 +116,7 @@ export function Badge({ tone = 'neutral', children }) {
     neutral: 'bg-line/50 text-dust',
     sale: 'bg-grove-light text-grove',
     credit: 'bg-warn-light text-warn',
-    repayment: 'bg-clay-light text-clay',
+    repayment: 'bg-card text-grove ring-1 ring-grove/40',
     danger: 'bg-danger-light text-danger',
   };
   return (
@@ -160,7 +160,7 @@ export function Sheet({ open, onClose, title, children }) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center">
       <button
         type="button"
         aria-label="Close"

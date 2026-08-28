@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Boxes, Package, Plus, Search, Trash2 } from 'lucide-react';
 import { MicButton } from '../components/MicButton.jsx';
 import { Screen, ScreenHeader } from '../components/Screen.jsx';
-import { Button, Card, EmptyState, Field, Input, SegmentedControl, Sheet, Skeleton } from '../components/ui.jsx';
+import { Button, Card, EmptyState, Field, Input, SegmentedControl, Select, Sheet, Skeleton } from '../components/ui.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useVoiceLedger } from '../hooks/useVoiceLedger';
@@ -163,17 +163,25 @@ export default function Inventory() {
                   <div className="shrink-0 text-right">
                     <p
                       className={`font-display text-lg font-semibold ${
-                        item.low_stock ? 'text-danger' : 'text-ink'
+                        Number(item.qty_on_hand) <= 0
+                          ? 'text-danger'
+                          : item.low_stock
+                            ? 'text-warn'
+                            : 'text-ink'
                       }`}
                     >
                       {formatQty(item.qty_on_hand)}
                     </p>
                     <p
                       className={`text-[11px] font-semibold uppercase tracking-wide ${
-                        item.low_stock ? 'text-danger' : 'text-dust'
+                        Number(item.qty_on_hand) <= 0
+                          ? 'text-danger'
+                          : item.low_stock
+                            ? 'text-warn'
+                            : 'text-dust'
                       }`}
                     >
-                      {item.low_stock ? 'Low' : 'in stock'}
+                      {Number(item.qty_on_hand) <= 0 ? 'Out of stock' : item.low_stock ? 'Low' : 'in stock'}
                     </p>
                   </div>
                 </Card>
@@ -257,17 +265,13 @@ function ItemSheet({ item, currency, onClose, onSaved }) {
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Unit">
-            <select
-              className="h-12 w-full rounded-2xl border border-line bg-white px-4 text-[15px] focus:border-grove focus:outline-none"
-              value={form.unit}
-              onChange={set('unit')}
-            >
+            <Select value={form.unit} onChange={set('unit')}>
               {UNITS.map((unit) => (
                 <option key={unit} value={unit}>
                   {unit}
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
           <Field label="Quantity on hand">
             <Input type="number" inputMode="decimal" value={form.qty_on_hand} onChange={set('qty_on_hand')} />

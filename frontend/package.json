@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/generate-assets.mjs",
     "build": "vite build",
     "preview": "vite preview",
-    "icons": "node scripts/generate-icons.mjs"
+    "assets": "node scripts/generate-assets.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

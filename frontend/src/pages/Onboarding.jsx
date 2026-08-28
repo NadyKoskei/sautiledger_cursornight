@@ -99,7 +99,7 @@ export default function Onboarding() {
                       className={`rounded-2xl border p-3 text-left transition ${
                         active
                           ? 'border-grove bg-grove-light'
-                          : 'border-line bg-white hover:border-dust/40'
+                          : 'border-line bg-card hover:border-dust/40'
                       }`}
                     >
                       <span className="flex items-center justify-between text-sm font-semibold">
@@ -129,7 +129,7 @@ export default function Onboarding() {
         </div>
       ) : (
         <div className="animate-fade-up">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-clay-light text-clay">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-grove-light text-grove">
             <Sparkles size={22} />
           </span>
           <h1 className="mt-4 font-display text-2xl font-semibold">Add your first items</h1>

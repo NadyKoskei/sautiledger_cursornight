@@ -87,13 +87,13 @@ export default function Reports() {
               type="date"
               value={custom.from}
               onChange={(event) => setCustom({ ...custom, from: event.target.value })}
-              className="h-11 rounded-2xl border border-line bg-white px-3 text-sm"
+              className="h-11 rounded-2xl border border-line bg-card px-3 text-sm"
             />
             <input
               type="date"
               value={custom.to}
               onChange={(event) => setCustom({ ...custom, to: event.target.value })}
-              className="h-11 rounded-2xl border border-line bg-white px-3 text-sm"
+              className="h-11 rounded-2xl border border-line bg-card px-3 text-sm"
             />
           </div>
         )}

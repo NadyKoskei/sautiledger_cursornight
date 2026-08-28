@@ -1,12 +1,12 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { Bot, Boxes, LineChart, Mic, Users, Home } from 'lucide-react';
+import { Boxes, LineChart, Mic, Users, Home } from 'lucide-react';
 
+// The assistant is not a tab: it floats above this bar on every screen.
 const TABS = [
   { to: '/', label: 'Home', icon: Home, end: true },
   { to: '/inventory', label: 'Stock', icon: Boxes },
   { to: '/customers', label: 'Madeni', icon: Users },
   { to: '/reports', label: 'Reports', icon: LineChart },
-  { to: '/assistant', label: 'Ask', icon: Bot },
 ];
 
 export function BottomNav() {
