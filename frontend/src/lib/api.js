@@ -67,8 +67,9 @@ export const api = {
   getCustomer: (id) => request(`/api/customers/${id}`),
   recordRepayment: (id, body) => request(`/api/customers/${id}/repayment`, { method: 'POST', body }),
 
+  transcribe: (body) => request('/api/transcribe', { method: 'POST', body }),
   parseIntent: (transcript) =>
-    request('/api/parse-intent', { method: 'POST', body: { transcript }, auth: false }),
+    request('/api/parse-intent', { method: 'POST', body: { transcript } }),
   recordTransaction: (intent) => request('/api/transaction', { method: 'POST', body: intent }),
   listTransactions: (scope = 'today') => request(`/api/transactions?scope=${scope}`),
   undoTransaction: (batchId) => request(`/api/transactions/${batchId}/undo`, { method: 'POST' }),

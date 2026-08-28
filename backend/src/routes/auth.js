@@ -2,14 +2,9 @@ import { randomInt } from 'node:crypto';
 import { Router } from 'express';
 import { query } from '../db.js';
 import { createToken, hashPin, isPhone, normalizePhone, requireAuth, verifyPin } from '../lib/auth.js';
+import { DEMO_ITEMS } from '../lib/demoCatalog.js';
 
 export const authRouter = Router();
-
-const STARTER_ITEMS = [
-  ['Unga', 'packet', 48, 120, 150, 10],
-  ['Sugar', 'kg', 12, 210, 280, 8],
-  ['Milk', 'packet', 24, 45, 60, 12],
-];
 
 function guestPhone() {
   return `07${String(randomInt(10000000, 99999999))}`;
@@ -26,7 +21,7 @@ async function findOrCreateOpenShop(phone) {
   );
   const shop = rows[0];
 
-  for (const [name, unit, qty, cost, price, threshold] of STARTER_ITEMS) {
+  for (const [name, unit, qty, cost, price, threshold] of DEMO_ITEMS) {
     await query(
       `INSERT INTO items (business_id, name, unit, qty_on_hand, cost_price, price, low_stock_threshold)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,

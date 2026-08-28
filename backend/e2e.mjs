@@ -60,6 +60,12 @@ async function run() {
   });
   check('short PIN is rejected', badPin.status === 400);
 
+  const shortPhone = await call('/api/auth/signup', {
+    method: 'POST',
+    body: { phone: '0701891', pin: '1234', business_name: 'x', owner_name: 'y' },
+  });
+  check('short phone is rejected', shortPhone.status === 400);
+
   const duplicate = await call('/api/auth/signup', {
     method: 'POST',
     body: { phone, pin: '4321', business_name: 'Test Duka', owner_name: 'Amina' },
@@ -71,8 +77,14 @@ async function run() {
   check('guest shop is onboarded', guest.body.business?.onboarded === true);
   if (guest.body.business?.phone) createdPhones.push(guest.body.business.phone);
 
-  const openShop = await call('/api/auth/login', { method: 'POST', body: { phone: '0701891' } });
-  check('open shop 0701891 needs no PIN', Boolean(openShop.body.token) && openShop.body.business?.phone === '0701891');
+  const openShop = await call('/api/auth/login', { method: 'POST', body: { phone: '0701891234' } });
+  check('open shop 0701891234 needs no PIN', Boolean(openShop.body.token) && openShop.body.business?.phone === '0701891234');
+
+  const emptyAudio = await call('/api/transcribe', { method: 'POST', body: {} });
+  check('transcribe rejects empty audio', emptyAudio.status === 400);
+
+  const emptyTts = await call('/api/tts', { method: 'POST', body: {} });
+  check('tts rejects empty text', emptyTts.status === 400);
 
   console.log('\n2. Onboarding');
   const onboarded = await call('/api/auth/business', {
@@ -128,6 +140,35 @@ async function run() {
   });
   check('speech parses to a sale intent', intent.body.action === 'sale');
   check('intent carries no money', intent.body.total === undefined && intent.body.price === undefined);
+
+  const moha = await call('/api/parse-intent', {
+    method: 'POST',
+    body: { transcript: 'Moha took 2kgs of sugar' },
+  });
+  check(
+    'customer-first sale treats Moha as the customer',
+    moha.body.action === 'sale' &&
+      moha.body.customer_name === 'Moha' &&
+      /sugar/i.test(moha.body.items?.[0]?.name || '') &&
+      moha.body.items?.[0]?.qty === 2,
+    JSON.stringify(moha.body)
+  );
+
+  const asked = await call('/api/parse-intent', {
+    method: 'POST',
+    body: { transcript: 'how much sukuma do I have' },
+  });
+  check('voice questions stay out of the ledger', asked.body.action === 'ask' && /Sukuma/.test(asked.body.answer || ''), asked.body.answer);
+
+  const about = await call('/api/parse-intent', {
+    method: 'POST',
+    body: { transcript: 'what can you do' },
+  });
+  check(
+    'voice knows SautiLedger',
+    about.body.action === 'ask' && /SautiLedger/.test(about.body.answer || ''),
+    about.body.answer
+  );
 
   const sale = await call('/api/transaction', { method: 'POST', body: intent.body });
   check('sale is priced by the database', sale.body.receipt?.total === 50, JSON.stringify(sale.body));
@@ -208,6 +249,9 @@ async function run() {
     ['How much profit this week?', /profit/],
     ['What are my best sellers?', /best sellers|No sales/],
     ['What is my stock worth?', /worth/],
+    ['What is on my shelf?', /Sukuma|stocking/],
+    ['How much Sukuma do I have?', /Sukuma/],
+    ['What can you do?', /SautiLedger|voice ledger/],
   ];
   for (const [question, pattern] of questions) {
     const answer = await call('/api/assistant', { method: 'POST', body: { question } });

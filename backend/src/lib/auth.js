@@ -74,5 +74,5 @@ export function normalizePhone(phone) {
 }
 
 export function isPhone(phone) {
-  return /^0\d{6,9}$/.test(phone);
+  return /^0\d{9}$/.test(phone);
 }

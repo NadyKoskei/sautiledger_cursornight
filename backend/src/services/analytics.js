@@ -1,6 +1,6 @@
 import { query } from '../db.js';
 import { formatAmount, formatQty, resolveRange } from '../lib/format.js';
-import { classifyQuestion, inferPeriod } from '../lib/nlu.js';
+import { classifyQuestion, extractStockQuery, inferPeriod } from '../lib/nlu.js';
 
 /**
  * Every figure the app displays or speaks is produced by these queries.
@@ -33,6 +33,60 @@ export async function getTotals(businessId, from, to) {
     profit: Number(row.revenue) - Number(row.cost),
     entries: Number(row.entries),
   };
+}
+
+export async function getInventory(businessId) {
+  const { rows } = await query(
+    `SELECT id, name, unit, qty_on_hand, cost_price, price, low_stock_threshold,
+            (qty_on_hand <= low_stock_threshold) AS low_stock
+       FROM items
+      WHERE business_id = $1 AND archived_at IS NULL
+      ORDER BY name ASC`,
+    [businessId]
+  );
+  return rows.map((row) => ({
+    ...row,
+    qty_on_hand: Number(row.qty_on_hand),
+    cost_price: Number(row.cost_price),
+    price: Number(row.price),
+    low_stock_threshold: Number(row.low_stock_threshold),
+  }));
+}
+
+export async function findInventoryItem(businessId, name) {
+  const needle = String(name || '').trim();
+  if (!needle) return null;
+
+  const { rows } = await query(
+    `SELECT id, name, unit, qty_on_hand, cost_price, price, low_stock_threshold
+       FROM items
+      WHERE business_id = $1
+        AND archived_at IS NULL
+        AND name ILIKE $2
+      ORDER BY CASE WHEN lower(name) = lower($3) THEN 0
+                    WHEN name ILIKE $4 THEN 1
+                    ELSE 2 END,
+               length(name)
+      LIMIT 1`,
+    [businessId, `%${needle}%`, needle, `${needle}%`]
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    ...row,
+    qty_on_hand: Number(row.qty_on_hand),
+    cost_price: Number(row.cost_price),
+    price: Number(row.price),
+    low_stock_threshold: Number(row.low_stock_threshold),
+  };
+}
+
+async function getShopProfile(businessId) {
+  const { rows } = await query(
+    `SELECT business_name, owner_name, currency, language FROM businesses WHERE id = $1`,
+    [businessId]
+  );
+  return rows[0] || { business_name: 'your shop', owner_name: '', currency: 'KES' };
 }
 
 export async function getLowStock(businessId) {
@@ -174,6 +228,70 @@ export async function answerQuestion(businessId, question) {
   const kind = classifyQuestion(question);
   const period = inferPeriod(question);
   const range = resolveRange(period);
+  const shop = await getShopProfile(businessId);
+  const currency = shop.currency || 'KES';
+
+  if (kind === 'help' || kind === 'unknown') {
+    const items = await getInventory(businessId);
+    const names = items.slice(0, 4).map((item) => item.name);
+    const shelf =
+      items.length === 0
+        ? 'Your shelf is empty — add items in Stock, or say "add 10 unga" on the mic.'
+        : `On your shelf I can see ${names.join(', ')}${items.length > 4 ? `, and ${items.length - 4} more` : ''}.`;
+    return {
+      answer:
+        `I am SautiLedger, the voice ledger for ${shop.business_name}. ` +
+        `You speak a sale, credit, restock, or repayment; I look up prices in your books and never invent a number. ` +
+        `${shelf} ` +
+        `Ask how much unga is left, who owes you, what sold best, or how much profit you made this week. ` +
+        `On the big mic you can say “sell two unga cash”.`,
+      data: { items, kind: 'help' },
+    };
+  }
+
+  if (kind === 'inventory_list') {
+    const items = await getInventory(businessId);
+    if (items.length === 0) {
+      return {
+        answer: 'You have no items on the shelf yet. Add them in Stock, or restock by voice.',
+        data: { items: [] },
+      };
+    }
+    const preview = items
+      .slice(0, 5)
+      .map((item) => `${item.name} (${formatQty(item.qty_on_hand)} ${item.unit})`)
+      .join(', ');
+    return {
+      answer: `${shop.business_name} is stocking ${items.length} item${items.length === 1 ? '' : 's'}: ${preview}${
+        items.length > 5 ? '…' : '.'
+      }`,
+      data: { items },
+    };
+  }
+
+  if (kind === 'item_qty') {
+    const needle = extractStockQuery(question);
+    if (!needle) {
+      return answerQuestion(businessId, 'what is on my shelf');
+    }
+    const item = await findInventoryItem(businessId, needle);
+    if (!item) {
+      const items = await getInventory(businessId);
+      const names = items.slice(0, 5).map((row) => row.name).join(', ') || 'nothing yet';
+      return {
+        answer: `I do not have “${needle}” on the shelf. I currently stock ${names}.`,
+        data: { items },
+      };
+    }
+    const low =
+      item.qty_on_hand <= item.low_stock_threshold
+        ? ` That is at or below your alert of ${formatQty(item.low_stock_threshold)}.`
+        : '';
+    return {
+      answer: `You have ${formatQty(item.qty_on_hand)} ${item.unit} of ${item.name} left. You sell it at ${currency} ${formatAmount(item.price)}.${low}`,
+      data: { items: [item] },
+    };
+  }
 
   if (kind === 'top_debtors') {
     const debtors = await getTopDebtors(businessId, 5);

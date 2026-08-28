@@ -10,9 +10,9 @@ import { api } from '../lib/api';
 import { money, qty as formatQty, summarise, time } from '../lib/format';
 
 const PROMPTS = {
-  idle: 'Tap the mic and speak the sale.',
+  idle: 'Tap the mic: record a sale, or ask what SautiLedger can do and what is on your shelf.',
   listening: 'Listening… say it the way you would to a customer.',
-  working: 'Checking your prices and writing it down…',
+  working: 'Checking your books…',
 };
 
 export default function Sales() {
@@ -178,6 +178,8 @@ export default function Sales() {
 }
 
 function ConfirmationCard({ receipt, currency, onUndo }) {
+  const isAsk = receipt.action === 'ask';
+
   return (
     <Card className="mt-3 w-full animate-fade-up ring-grove/30">
       <div className="flex items-start gap-2">
@@ -200,19 +202,21 @@ function ConfirmationCard({ receipt, currency, onUndo }) {
 
           <div className="mt-3 flex items-center justify-between border-t border-line pt-3">
             <div className="flex items-center gap-2">
-              <Badge tone={receipt.action}>{receipt.action}</Badge>
+              <Badge tone={receipt.action}>{isAsk ? 'answer' : receipt.action}</Badge>
               {receipt.customer && (
                 <span className="text-xs text-dust">{receipt.customer.name}</span>
               )}
             </div>
-            <button
-              type="button"
-              onClick={onUndo}
-              className="flex items-center gap-1 text-xs font-semibold text-dust transition hover:text-ink"
-            >
-              <Undo2 size={14} />
-              Undo
-            </button>
+            {!isAsk && (
+              <button
+                type="button"
+                onClick={onUndo}
+                className="flex items-center gap-1 text-xs font-semibold text-dust transition hover:text-ink"
+              >
+                <Undo2 size={14} />
+                Undo
+              </button>
+            )}
           </div>
         </div>
       </div>

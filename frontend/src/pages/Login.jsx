@@ -98,9 +98,13 @@ export default function Login() {
               type="tel"
               inputMode="numeric"
               autoComplete="tel"
-              placeholder="0701891"
+              placeholder="0701891234"
+              maxLength={10}
+              pattern="0[0-9]{9}"
               value={form.phone}
-              onChange={set('phone')}
+              onChange={(event) =>
+                setForm({ ...form, phone: event.target.value.replace(/\D/g, '').slice(0, 10) })
+              }
               required={isSignup}
             />
           </Field>
@@ -180,12 +184,12 @@ export default function Login() {
               size="lg"
               className="mt-3 w-full"
               disabled={busy}
-              onClick={() => handleGuest('0701891')}
+              onClick={() => handleGuest('0701891234')}
             >
               Continue without an account
             </Button>
             <p className="mt-6 text-center text-xs text-dust">
-              Open shop: 0701891 (no PIN). Demo shop: 0712345678 · PIN 1234
+              Open shop: 0701891234 (no PIN). Demo shop: 0712345678 · PIN 1234
             </p>
           </>
         )}

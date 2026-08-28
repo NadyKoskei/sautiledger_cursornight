@@ -1,64 +1,53 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { api } from '../lib/api';
 
-/**
- * Chrome's Web Speech service does not ship every BCP-47 tag. en-KE and sw-KE
- * often fail immediately with a `network` error, which used to surface as
- * "try again in a quieter spot". Fall back through locales Chrome actually
- * serves, remembering the first one that produces audio.
- */
-const LANG_FALLBACKS = {
-  en: ['en-KE', 'en-GB', 'en-US'],
-  sw: ['sw-KE', 'sw-TZ', 'sw', 'en-GB', 'en-US'],
-  mixed: ['en-KE', 'en-GB', 'en-US'],
-};
+const SPEECH_RMS = 0.04;
+const SILENCE_MS = 1400;
+const MAX_LISTEN_MS = 12000;
 
-const workingLang = {};
-
-function fallbacksFor(language) {
-  return LANG_FALLBACKS[language] || LANG_FALLBACKS.en;
+function pickMimeType() {
+  if (typeof MediaRecorder === 'undefined') return '';
+  const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+  return types.find((type) => MediaRecorder.isTypeSupported(type)) || '';
 }
 
-function messageForError(code) {
-  switch (code) {
-    case 'not-allowed':
-    case 'service-not-allowed':
-      return 'Microphone blocked. Allow mic access in your browser settings.';
-    case 'audio-capture':
-      return 'No microphone found. Plug one in and try again.';
-    case 'network':
-      return 'Voice needs an internet connection. Check your network and try again.';
-    case 'no-speech':
-      return 'I could not hear that. Try again in a quieter spot.';
-    case 'language-not-supported':
-      return 'This browser cannot listen in that language yet. Try speaking in English.';
-    default:
-      return 'I could not hear that. Try again.';
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '');
+      resolve(dataUrl.split(',')[1] || '');
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+function rmsFromTimeDomain(bytes) {
+  let sum = 0;
+  for (let i = 0; i < bytes.length; i += 1) {
+    const value = (bytes[i] - 128) / 128;
+    sum += value * value;
   }
+  return Math.sqrt(sum / bytes.length);
 }
 
-export function getSpeechRecognition() {
-  if (typeof window === 'undefined') return null;
-  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+function canRecord() {
+  return Boolean(
+    typeof window !== 'undefined' &&
+      navigator.mediaDevices?.getUserMedia &&
+      typeof MediaRecorder !== 'undefined'
+  );
 }
 
 /**
- * Thin wrapper over the Web Speech API.
- * Interim results are surfaced so the shopkeeper can see they are being heard.
+ * Records a spoken phrase in the browser and sends it to the backend ears
+ * (ElevenLabs Scribe). Chrome's Web Speech API is not used — it depends on
+ * Google's network and often fails here with a false "needs internet" error.
  */
 export function useSpeechRecognition({ language = 'en', onResult } = {}) {
-  const recognitionRef = useRef(null);
   const resultRef = useRef(onResult);
-  const lastHeardRef = useRef('');
-  const restartTimerRef = useRef(null);
-  const sessionRef = useRef({
-    cancelled: false,
-    gotFinal: false,
-    heardAnything: false,
-    errored: false,
-    langIndex: 0,
-    retrying: false,
-  });
-
+  const sessionRef = useRef(null);
   const [listening, setListening] = useState(false);
   const [interim, setInterim] = useState('');
   const [error, setError] = useState('');
@@ -67,145 +56,199 @@ export function useSpeechRecognition({ language = 'en', onResult } = {}) {
     resultRef.current = onResult;
   }, [onResult]);
 
-  const supported = Boolean(getSpeechRecognition());
-
-  const finishWithTranscript = useCallback((text) => {
-    const spoken = String(text || '').trim();
-    if (!spoken || sessionRef.current.gotFinal) return;
-    sessionRef.current.gotFinal = true;
-    resultRef.current?.(spoken);
+  const cleanupSession = useCallback((session) => {
+    if (!session) return;
+    if (session.raf) cancelAnimationFrame(session.raf);
+    session.stream?.getTracks().forEach((track) => track.stop());
+    if (session.audioContext && session.audioContext.state !== 'closed') {
+      session.audioContext.close().catch(() => {});
+    }
   }, []);
 
-  const begin = useCallback(
-    (langIndex) => {
-      const SpeechRecognition = getSpeechRecognition();
-      if (!SpeechRecognition) {
-        setError('This browser cannot listen. Use Chrome, or type the sale instead.');
+  const transcribe = useCallback(
+    async (blob, session) => {
+      if (session.cancelled) return;
+      if (!blob || blob.size < 800) {
+        setListening(false);
+        setInterim('');
+        setError('I could not hear that. Try again in a quieter spot.');
         return;
       }
 
-      const langs = fallbacksFor(language);
-      const lang = langs[Math.min(langIndex, langs.length - 1)];
-      sessionRef.current.langIndex = langIndex;
-      sessionRef.current.retrying = false;
-      lastHeardRef.current = '';
-
-      const recognition = new SpeechRecognition();
-      recognition.lang = lang;
-      recognition.interimResults = true;
-      recognition.continuous = false;
-      recognition.maxAlternatives = 1;
-      recognitionRef.current = recognition;
-
-      recognition.onstart = () => {
-        setListening(true);
-        setInterim('');
-        setError('');
-      };
-
-      recognition.onerror = (event) => {
-        const code = event.error;
-        if (code === 'aborted' || code === 'no-speech' || sessionRef.current.cancelled) return;
-
-        const canRetryLang =
-          (code === 'language-not-supported' || (code === 'network' && !sessionRef.current.heardAnything)) &&
-          langIndex < langs.length - 1;
-
-        if (canRetryLang) {
-          sessionRef.current.retrying = true;
-          sessionRef.current.langIndex = langIndex + 1;
-          return;
-        }
-
-        sessionRef.current.errored = true;
-        setError(messageForError(code));
-      };
-
-      recognition.onresult = (event) => {
-        let finalText = '';
-        let pending = '';
-
-        for (let i = 0; i < event.results.length; i += 1) {
-          const result = event.results[i];
-          const text = result[0]?.transcript || '';
-          if (result.isFinal) finalText += text;
-          else pending += text;
-        }
-
-        const heard = (finalText || pending).trim();
-        if (heard) {
-          sessionRef.current.heardAnything = true;
-          lastHeardRef.current = heard;
-          workingLang[language] = lang;
-          setInterim(pending || finalText);
-        }
-
-        if (finalText.trim()) finishWithTranscript(finalText);
-      };
-
-      recognition.onend = () => {
-        recognitionRef.current = null;
-
-        if (sessionRef.current.retrying && !sessionRef.current.cancelled) {
-          restartTimerRef.current = setTimeout(() => begin(sessionRef.current.langIndex), 160);
-          return;
-        }
-
-        if (!sessionRef.current.gotFinal && !sessionRef.current.cancelled && !sessionRef.current.errored) {
-          if (lastHeardRef.current) finishWithTranscript(lastHeardRef.current);
-          else setError(messageForError('no-speech'));
-        }
-
-        setListening(false);
-      };
-
+      setInterim('Writing it down…');
       try {
-        recognition.start();
-      } catch {
-        recognitionRef.current = null;
-        setListening(false);
-        setError('I could not start the microphone. Tap again.');
+        const audio = await blobToBase64(blob);
+        const { transcript } = await api.transcribe({
+          audio,
+          mimeType: blob.type || 'audio/webm',
+          language,
+        });
+        const spoken = String(transcript || '').trim();
+        if (session.cancelled) return;
+        if (!spoken) {
+          setError('I could not hear that. Try again in a quieter spot.');
+          return;
+        }
+        setInterim(spoken);
+        resultRef.current?.(spoken);
+      } catch (problem) {
+        if (!session.cancelled) setError(problem.message || 'I could not write down what you said.');
+      } finally {
+        if (!session.cancelled) {
+          setListening(false);
+          sessionRef.current = null;
+        }
       }
     },
-    [finishWithTranscript, language]
+    [language]
   );
 
   const stop = useCallback(() => {
-    if (!lastHeardRef.current) sessionRef.current.cancelled = true;
-    recognitionRef.current?.stop();
-  }, []);
+    const session = sessionRef.current;
+    if (!session || session.stopping) return;
+    session.stopping = true;
+    if (session.raf) cancelAnimationFrame(session.raf);
+    if (session.recorder && session.recorder.state !== 'inactive') session.recorder.stop();
+    else {
+      cleanupSession(session);
+      sessionRef.current = null;
+      setListening(false);
+    }
+  }, [cleanupSession]);
 
-  const start = useCallback(() => {
-    if (recognitionRef.current) {
+  const start = useCallback(async () => {
+    if (sessionRef.current) {
       stop();
       return;
     }
 
-    const langs = fallbacksFor(language);
-    const remembered = workingLang[language];
-    const rememberedIndex = remembered ? langs.indexOf(remembered) : 0;
+    if (!canRecord()) {
+      setError('This browser cannot listen. Use Chrome, or type the sale instead.');
+      return;
+    }
 
-    sessionRef.current = {
-      cancelled: false,
-      gotFinal: false,
-      heardAnything: false,
-      errored: false,
-      langIndex: rememberedIndex < 0 ? 0 : rememberedIndex,
-      retrying: false,
-    };
-    lastHeardRef.current = '';
     setError('');
-    begin(sessionRef.current.langIndex);
-  }, [begin, language, stop]);
+    setInterim('Listening…');
+    setListening(true);
+
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+      });
+    } catch {
+      setListening(false);
+      setInterim('');
+      setError('Microphone blocked. Allow mic access in your browser settings.');
+      return;
+    }
+
+    if (sessionRef.current) {
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+
+    const mimeType = pickMimeType();
+    const recorder = mimeType
+      ? new MediaRecorder(stream, { mimeType })
+      : new MediaRecorder(stream);
+    const chunks = [];
+    const session = {
+      stream,
+      recorder,
+      chunks,
+      cancelled: false,
+      stopping: false,
+      heardSpeech: false,
+      silenceFrom: 0,
+      startedAt: Date.now(),
+      raf: 0,
+      audioContext: null,
+    };
+    sessionRef.current = session;
+
+    recorder.ondataavailable = (event) => {
+      if (event.data?.size) chunks.push(event.data);
+    };
+
+    recorder.onerror = () => {
+      setError('I could not start the microphone. Tap again.');
+      cleanupSession(session);
+      sessionRef.current = null;
+      setListening(false);
+    };
+
+    recorder.onstop = () => {
+      const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || 'audio/webm' });
+      cleanupSession(session);
+      transcribe(blob, session);
+    };
+
+    try {
+      recorder.start();
+    } catch {
+      cleanupSession(session);
+      sessionRef.current = null;
+      setListening(false);
+      setError('I could not start the microphone. Tap again.');
+      return;
+    }
+
+    try {
+      const audioContext = new AudioContext();
+      await audioContext.resume();
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 2048;
+      source.connect(analyser);
+      session.audioContext = audioContext;
+      const samples = new Uint8Array(analyser.fftSize);
+
+      const tick = () => {
+        if (session.stopping || session.cancelled || sessionRef.current !== session) return;
+        analyser.getByteTimeDomainData(samples);
+        const rms = rmsFromTimeDomain(samples);
+        const now = Date.now();
+
+        if (rms >= SPEECH_RMS) {
+          session.heardSpeech = true;
+          session.silenceFrom = now;
+          setInterim('Listening…');
+        } else if (session.heardSpeech && now - session.silenceFrom >= SILENCE_MS) {
+          stop();
+          return;
+        } else if (now - session.startedAt >= MAX_LISTEN_MS) {
+          stop();
+          return;
+        }
+
+        session.raf = requestAnimationFrame(tick);
+      };
+      session.raf = requestAnimationFrame(tick);
+    } catch {
+      // Silence detection is optional; the shopkeeper can tap the mic to stop.
+    }
+  }, [cleanupSession, stop, transcribe]);
 
   useEffect(
     () => () => {
-      sessionRef.current.cancelled = true;
-      recognitionRef.current?.abort();
-      if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+      const session = sessionRef.current;
+      if (!session) return;
+      session.cancelled = true;
+      if (session.recorder && session.recorder.state !== 'inactive') session.recorder.stop();
+      cleanupSession(session);
+      sessionRef.current = null;
     },
-    []
+    [cleanupSession]
   );
 
-  return { listening, interim, error, supported, start, stop, setError };
+  return {
+    listening,
+    interim,
+    error,
+    supported: canRecord(),
+    start,
+    stop,
+    setError,
+  };
 }

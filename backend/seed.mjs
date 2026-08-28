@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { pool, query } from './src/db.js';
 import { hashPin } from './src/lib/auth.js';
+import { DEMO_CUSTOMERS, DEMO_ITEMS, OPEN_SHOP_PHONE } from './src/lib/demoCatalog.js';
 
 const SHOPS = [
   {
@@ -11,29 +12,12 @@ const SHOPS = [
     language: 'mixed',
   },
   {
-    phone: '0701891',
+    phone: OPEN_SHOP_PHONE,
     pin: '0000',
     business_name: 'Open Duka',
     owner_name: 'Guest',
     language: 'mixed',
   },
-];
-
-const ITEMS = [
-  ['Unga', 'packet', 48, 120, 150, 10],
-  ['Sugar', 'kg', 6, 210, 280, 8],
-  ['Cooking oil', 'litre', 18, 190, 250, 5],
-  ['Milk', 'packet', 32, 45, 60, 12],
-  ['Rice', 'kg', 25, 150, 200, 10],
-  ['Tea leaves', 'packet', 4, 85, 120, 6],
-  ['Soap', 'bar', 40, 35, 55, 10],
-  ['Bread', 'loaf', 9, 50, 70, 10],
-];
-
-const CUSTOMERS = [
-  ['Mama Jane', '0722000111'],
-  ['Baba Ali', '0733222333'],
-  ['Teacher Wanjiru', null],
 ];
 
 async function seedShop(shop) {
@@ -46,7 +30,7 @@ async function seedShop(shop) {
   );
   const businessId = business.rows[0].id;
 
-  for (const [name, unit, qty, cost, price, threshold] of ITEMS) {
+  for (const [name, unit, qty, cost, price, threshold] of DEMO_ITEMS) {
     await query(
       `INSERT INTO items (business_id, name, unit, qty_on_hand, cost_price, price, low_stock_threshold)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
@@ -54,7 +38,7 @@ async function seedShop(shop) {
     );
   }
 
-  for (const [name, phone] of CUSTOMERS) {
+  for (const [name, phone] of DEMO_CUSTOMERS) {
     await query('INSERT INTO customers (business_id, name, phone) VALUES ($1, $2, $3)', [
       businessId,
       name,
@@ -119,6 +103,7 @@ async function seedShop(shop) {
 }
 
 async function seed() {
+  await query("DELETE FROM businesses WHERE phone = '0701891'");
   for (const shop of SHOPS) {
     await seedShop(shop);
   }
