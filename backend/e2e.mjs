@@ -66,6 +66,14 @@ async function run() {
   });
   check('duplicate phone is rejected', duplicate.status === 409);
 
+  const guest = await call('/api/auth/guest', { method: 'POST', body: {} });
+  check('guest login returns a token', Boolean(guest.body.token), JSON.stringify(guest.body));
+  check('guest shop is onboarded', guest.body.business?.onboarded === true);
+  if (guest.body.business?.phone) createdPhones.push(guest.body.business.phone);
+
+  const openShop = await call('/api/auth/login', { method: 'POST', body: { phone: '0701891' } });
+  check('open shop 0701891 needs no PIN', Boolean(openShop.body.token) && openShop.body.business?.phone === '0701891');
+
   console.log('\n2. Onboarding');
   const onboarded = await call('/api/auth/business', {
     method: 'PATCH',

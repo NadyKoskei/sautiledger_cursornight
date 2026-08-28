@@ -47,6 +47,7 @@ async function request(path, { method = 'GET', body, auth = true } = {}) {
 export const api = {
   signup: (body) => request('/api/auth/signup', { method: 'POST', body, auth: false }),
   login: (body) => request('/api/auth/login', { method: 'POST', body, auth: false }),
+  guest: (body = {}) => request('/api/auth/guest', { method: 'POST', body, auth: false }),
   me: () => request('/api/auth/me'),
   updateBusiness: (body) => request('/api/auth/business', { method: 'PATCH', body }),
 
