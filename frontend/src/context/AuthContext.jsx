@@ -34,6 +34,13 @@ export function AuthProvider({ children }) {
     return found;
   }, []);
 
+  const enterAsGuest = useCallback(async (phone) => {
+    const { token, business: found } = await api.guest(phone ? { phone } : {});
+    setToken(token);
+    setBusiness(found);
+    return found;
+  }, []);
+
   const signup = useCallback(async (details) => {
     const { token, business: created } = await api.signup(details);
     setToken(token);
@@ -53,8 +60,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ business, loading, login, signup, logout, updateBusiness }),
-    [business, loading, login, signup, logout, updateBusiness]
+    () => ({ business, loading, login, signup, enterAsGuest, logout, updateBusiness }),
+    [business, loading, login, signup, enterAsGuest, logout, updateBusiness]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

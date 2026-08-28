@@ -1,23 +1,93 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { requireAuth } from '../lib/auth.js';
-import { parseIntent } from '../lib/nlu.js';
+import { isLedgerCommand, parseIntent } from '../lib/nlu.js';
+import { transcribeSpeech } from '../lib/stt.js';
+import { synthesizeSpeech } from '../lib/tts.js';
+import { answerQuestion, getInventory } from '../services/analytics.js';
 import { LedgerError, recordTransaction, restockItems, undoBatch } from '../services/ledger.js';
 
 export const ledgerRouter = Router();
 
+async function loadCatalog(businessId) {
+  const items = await getInventory(businessId);
+  return items.map((item) => ({ name: item.name, unit: item.unit }));
+}
+
 /**
  * Ears only. Turns speech into a strict intent and stops there.
  * No price, quantity on hand, or total is read here.
+ * Questions about the shop are answered from the ledger instead of being forced into a sale.
  */
-ledgerRouter.post('/parse-intent', (req, res) => {
-  const transcript = req.body?.transcript;
+ledgerRouter.post('/parse-intent', requireAuth, async (req, res, next) => {
+  try {
+    const transcript = req.body?.transcript;
 
-  if (!transcript || typeof transcript !== 'string') {
-    return res.status(400).json({ message: 'I did not hear anything. Try again.' });
+    if (!transcript || typeof transcript !== 'string') {
+      return res.status(400).json({ message: 'I did not hear anything. Try again.' });
+    }
+
+    const catalog = await loadCatalog(req.businessId);
+
+    if (!isLedgerCommand(transcript)) {
+      const result = await answerQuestion(req.businessId, transcript);
+      return res.json({
+        action: 'ask',
+        items: [],
+        payment_type: null,
+        customer_name: null,
+        answer: result.answer,
+        data: result.data,
+      });
+    }
+
+    return res.json(parseIntent(transcript, { catalog }));
+  } catch (error) {
+    return next(error);
   }
+});
 
-  return res.json(parseIntent(transcript));
+ledgerRouter.post('/tts', requireAuth, async (req, res, next) => {
+  try {
+    const text = String(req.body?.text || '').trim();
+    if (!text) {
+      return res.status(400).json({ message: 'Nothing to say.' });
+    }
+
+    const audio = await synthesizeSpeech(text);
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.send(audio);
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ message: error.message });
+    return next(error);
+  }
+});
+
+ledgerRouter.post('/transcribe', requireAuth, async (req, res, next) => {
+  try {
+    const audio = req.body?.audio;
+    if (!audio || typeof audio !== 'string') {
+      return res.status(400).json({ message: 'I did not catch any audio. Tap the mic and try again.' });
+    }
+
+    const catalog = await loadCatalog(req.businessId);
+    const transcript = await transcribeSpeech({
+      audioBase64: audio,
+      mimeType: req.body?.mimeType,
+      language: req.body?.language,
+      keyterms: catalog.map((item) => item.name),
+    });
+
+    if (!transcript) {
+      return res.status(400).json({ message: 'I could not hear that. Try again in a quieter spot.' });
+    }
+
+    return res.json({ transcript });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ message: error.message });
+    return next(error);
+  }
 });
 
 ledgerRouter.post('/transaction', requireAuth, async (req, res, next) => {

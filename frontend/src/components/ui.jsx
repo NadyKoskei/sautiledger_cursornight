@@ -117,6 +117,7 @@ export function Badge({ tone = 'neutral', children }) {
     sale: 'bg-grove-light text-grove',
     credit: 'bg-warn-light text-warn',
     repayment: 'bg-card text-grove ring-1 ring-grove/40',
+    ask: 'bg-grove-light text-grove',
     danger: 'bg-danger-light text-danger',
   };
   return (

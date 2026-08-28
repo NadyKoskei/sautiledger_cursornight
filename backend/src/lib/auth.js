@@ -72,3 +72,7 @@ export function normalizePhone(phone) {
   if (digits.startsWith('254')) return `0${digits.slice(3)}`;
   return digits;
 }
+
+export function isPhone(phone) {
+  return /^0\d{9}$/.test(phone);
+}

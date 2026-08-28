@@ -12,7 +12,7 @@ const LANGUAGES = [
 ];
 
 export default function Login() {
-  const { login, signup } = useAuth();
+  const { login, signup, enterAsGuest } = useAuth();
   const { notify } = useToast();
   const navigate = useNavigate();
 
@@ -30,6 +30,11 @@ export default function Login() {
   const isSignup = mode === 'signup';
   const set = (key) => (event) => setForm({ ...form, [key]: event.target.value });
 
+  function goIn(business, greeting) {
+    if (greeting) notify(greeting, 'success');
+    navigate(business.onboarded ? '/' : '/welcome', { replace: true });
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     setError('');
@@ -41,9 +46,21 @@ export default function Login() {
         navigate('/welcome', { replace: true });
       } else {
         const business = await login({ phone: form.phone, pin: form.pin });
-        notify(`Karibu back, ${business.owner_name}.`, 'success');
-        navigate(business.onboarded ? '/' : '/welcome', { replace: true });
+        goIn(business, `Karibu, ${business.owner_name}.`);
       }
+    } catch (problem) {
+      setError(problem.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleGuest(phone) {
+    setError('');
+    setBusy(true);
+    try {
+      const business = await enterAsGuest(phone);
+      goIn(business, `Karibu, ${business.owner_name}.`);
     } catch (problem) {
       setError(problem.message);
     } finally {
@@ -81,20 +98,24 @@ export default function Login() {
               type="tel"
               inputMode="numeric"
               autoComplete="tel"
-              placeholder="0712345678"
+              placeholder="0701891234"
+              maxLength={10}
+              pattern="0[0-9]{9}"
               value={form.phone}
-              onChange={set('phone')}
-              required
+              onChange={(event) =>
+                setForm({ ...form, phone: event.target.value.replace(/\D/g, '').slice(0, 10) })
+              }
+              required={isSignup}
             />
           </Field>
 
-          <Field label="PIN" hint="4 to 6 digits" htmlFor="pin">
+          <Field label="PIN" hint={isSignup ? '4 to 6 digits' : 'Optional — leave blank to enter without a PIN'} htmlFor="pin">
             <Input
               id="pin"
               name="pin"
               type="password"
               inputMode="numeric"
-              pattern="\d{4,6}"
+              pattern={isSignup ? '\\d{4,6}' : undefined}
               maxLength={6}
               autoComplete={isSignup ? 'new-password' : 'current-password'}
               placeholder="••••"
@@ -103,7 +124,7 @@ export default function Login() {
               onChange={(event) =>
                 setForm({ ...form, pin: event.target.value.replace(/\D/g, '').slice(0, 6) })
               }
-              required
+              required={isSignup}
             />
           </Field>
 
@@ -156,9 +177,21 @@ export default function Login() {
         </form>
 
         {!isSignup && (
-          <p className="mt-6 text-center text-xs text-dust">
-            Demo shop: 0712345678 · PIN 1234
-          </p>
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              size="lg"
+              className="mt-3 w-full"
+              disabled={busy}
+              onClick={() => handleGuest('0701891234')}
+            >
+              Continue without an account
+            </Button>
+            <p className="mt-6 text-center text-xs text-dust">
+              Open shop: 0701891234 (no PIN). Demo shop: 0712345678 · PIN 1234
+            </p>
+          </>
         )}
       </div>
     </div>

@@ -30,7 +30,13 @@ export function useVoiceLedger({ scope = 'sale', onRecorded } = {}) {
       try {
         const intent = await api.parseIntent(text);
 
-        if (scope === 'restock' && intent.action !== 'repayment') {
+        if (intent.action === 'ask') {
+          playElevenLabsAudio(intent.answer, { language: business?.language });
+          setReceipt({ action: 'ask', message: intent.answer, data: intent.data, lines: [] });
+          return intent;
+        }
+
+        if (scope === 'restock' && intent.action !== 'repayment' && intent.action !== 'ask') {
           intent.action = 'restock';
         }
 

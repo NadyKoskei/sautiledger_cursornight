@@ -7,11 +7,11 @@ import { api } from '../lib/api';
 import { money } from '../lib/format';
 import { playElevenLabsAudio } from '../lib/tts';
 
-const SUGGESTIONS = [
+const DEFAULT_SUGGESTIONS = [
+  'What can you do?',
+  'What is on my shelf?',
+  'How much unga is left?',
   'Who owes me the most?',
-  'Should I restock?',
-  'How much profit this week?',
-  'What are my best sellers?',
 ];
 
 /**
@@ -28,11 +28,41 @@ export function AssistantChat({ className = '', autoFocus = false }) {
     {
       id: 'intro',
       role: 'assistant',
-      text: `Karibu ${business?.owner_name?.split(' ')[0] || ''}. Ask me anything about your shop — I read the answers straight from your ledger.`,
+      text: `Karibu ${business?.owner_name?.split(' ')[0] || ''}. I am SautiLedger, the voice ledger for your duka. You speak a sale, credit, restock, or repayment; I look up the numbers in your books. Ask what you stock, how much is left, or who owes you.`,
     },
   ]);
+  const [suggestions, setSuggestions] = useState(DEFAULT_SUGGESTIONS);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .listItems()
+      .then(({ items }) => {
+        if (!active || !items?.length) return;
+        const names = items.slice(0, 3).map((item) => item.name);
+        const first = items[0];
+        setMessages([
+          {
+            id: 'intro',
+            role: 'assistant',
+            text: `Karibu ${business?.owner_name?.split(' ')[0] || ''}. I am SautiLedger for ${business?.business_name || 'your shop'}. I can see ${items.length} items on the shelf, including ${names.join(', ')}. Ask me how much is left, who owes you, or say “sell two ${first.name.toLowerCase()} cash” on the mic.`,
+            data: { items },
+          },
+        ]);
+        setSuggestions([
+          'What can you do?',
+          'What is on my shelf?',
+          `How much ${first.name.toLowerCase()} is left?`,
+          'Who owes me the most?',
+        ]);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [business?.business_name, business?.owner_name]);
 
   const ask = useCallback(
     async (question) => {
@@ -99,7 +129,7 @@ export function AssistantChat({ className = '', autoFocus = false }) {
 
         {messages.length <= 1 && (
           <div className="flex flex-wrap gap-2 pt-2">
-            {SUGGESTIONS.map((suggestion) => (
+            {suggestions.map((suggestion) => (
               <button
                 key={suggestion}
                 type="button"

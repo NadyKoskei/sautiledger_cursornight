@@ -1,46 +1,36 @@
 import 'dotenv/config';
 import { pool, query } from './src/db.js';
 import { hashPin } from './src/lib/auth.js';
+import { DEMO_CUSTOMERS, DEMO_ITEMS, OPEN_SHOP_PHONE } from './src/lib/demoCatalog.js';
 
-const DEMO = {
-  phone: '0712345678',
-  pin: '1234',
-  business_name: 'Baraka Duka',
-  owner_name: 'Nadia',
-  language: 'mixed',
-};
-
-const ITEMS = [
-  ['Unga', 'packet', 48, 120, 150, 10],
-  ['Sugar', 'kg', 6, 210, 280, 8],
-  ['Cooking oil', 'litre', 18, 190, 250, 5],
-  ['Milk', 'packet', 32, 45, 60, 12],
-  ['Rice', 'kg', 25, 150, 200, 10],
-  ['Tea leaves', 'packet', 4, 85, 120, 6],
-  ['Soap', 'bar', 40, 35, 55, 10],
-  ['Bread', 'loaf', 9, 50, 70, 10],
+const SHOPS = [
+  {
+    phone: '0712345678',
+    pin: '1234',
+    business_name: 'Baraka Duka',
+    owner_name: 'Nadia',
+    language: 'mixed',
+  },
+  {
+    phone: OPEN_SHOP_PHONE,
+    pin: '0000',
+    business_name: 'Open Duka',
+    owner_name: 'Guest',
+    language: 'mixed',
+  },
 ];
 
-const CUSTOMERS = [
-  ['Mama Jane', '0722000111'],
-  ['Baba Ali', '0733222333'],
-  ['Teacher Wanjiru', null],
-];
-
-async function seed() {
-  const existing = await query('SELECT id FROM businesses WHERE phone = $1', [DEMO.phone]);
-  if (existing.rows[0]) {
-    await query('DELETE FROM businesses WHERE phone = $1', [DEMO.phone]);
-  }
+async function seedShop(shop) {
+  await query('DELETE FROM businesses WHERE phone = $1', [shop.phone]);
 
   const business = await query(
     `INSERT INTO businesses (phone, pin_hash, business_name, owner_name, language, onboarded)
      VALUES ($1, $2, $3, $4, $5, TRUE) RETURNING id`,
-    [DEMO.phone, hashPin(DEMO.pin), DEMO.business_name, DEMO.owner_name, DEMO.language]
+    [shop.phone, hashPin(shop.pin), shop.business_name, shop.owner_name, shop.language]
   );
   const businessId = business.rows[0].id;
 
-  for (const [name, unit, qty, cost, price, threshold] of ITEMS) {
+  for (const [name, unit, qty, cost, price, threshold] of DEMO_ITEMS) {
     await query(
       `INSERT INTO items (business_id, name, unit, qty_on_hand, cost_price, price, low_stock_threshold)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
@@ -48,7 +38,7 @@ async function seed() {
     );
   }
 
-  for (const [name, phone] of CUSTOMERS) {
+  for (const [name, phone] of DEMO_CUSTOMERS) {
     await query('INSERT INTO customers (business_id, name, phone) VALUES ($1, $2, $3)', [
       businessId,
       name,
@@ -56,7 +46,6 @@ async function seed() {
     ]);
   }
 
-  // A week of history so Reports and the Assistant have something real to read.
   const items = await query('SELECT id, name, cost_price, price FROM items WHERE business_id = $1', [
     businessId,
   ]);
@@ -108,9 +97,16 @@ async function seed() {
   );
   await query('UPDATE customers SET balance = GREATEST(balance - 200, 0) WHERE id = $1', [repaid.id]);
 
-  console.log(`Seeded ${DEMO.business_name}`);
-  console.log(`  Phone: ${DEMO.phone}`);
-  console.log(`  PIN:   ${DEMO.pin}`);
+  console.log(`Seeded ${shop.business_name}`);
+  console.log(`  Phone: ${shop.phone}`);
+  console.log(`  PIN:   ${shop.pin === '0000' ? '(none required)' : shop.pin}`);
+}
+
+async function seed() {
+  await query("DELETE FROM businesses WHERE phone = '0701891'");
+  for (const shop of SHOPS) {
+    await seedShop(shop);
+  }
 }
 
 seed()

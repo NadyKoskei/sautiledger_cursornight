@@ -95,16 +95,18 @@ export default function Inventory() {
         </div>
 
         <p className="mt-2 text-xs text-dust">
-          Mic here adds stock. Say <span className="text-ink">“add 20 sugar”</span>.
+          Mic here adds stock or answers about this shop. Say{' '}
+          <span className="text-ink">“add 20 sugar”</span> or{' '}
+          <span className="text-ink">“what is on my shelf?”</span>
         </p>
 
-        {(voice.interim || voice.error) && (
+        {(voice.interim || voice.error || voice.receipt?.message) && (
           <p
             className={`mt-2 rounded-2xl px-4 py-2.5 text-sm ${
               voice.error ? 'bg-danger-light text-danger' : 'bg-grove-light text-grove-dark'
             }`}
           >
-            {voice.error || voice.interim}
+            {voice.error || voice.receipt?.message || voice.interim}
           </p>
         )}
 
