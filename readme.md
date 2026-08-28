@@ -1,86 +1,113 @@
 # SautiLedger
 
-Voice-first duka inventory. **AI is ears and mouth. The database is the brain.**
+Voice-first inventory and credit book for a Kenyan duka. The shopkeeper talks; the app keeps the books.
 
-Speech is parsed into a strict JSON intent. Node.js and PostgreSQL do every price lookup, stock decrement, and total. The model never does math.
+> **Architecture rule: AI is the ears and the mouth. The database is the brain.**
+> Speech is turned into a strict JSON intent and nothing more. Every price lookup, stock decrement, total, balance, and profit figure is computed by PostgreSQL. The model never does arithmetic, so it can never invent a number.
+
+## The flow
+
+```
+speech  →  POST /api/parse-intent  →  { action, items[], payment_type, customer_name }
+                                            │
+                                            ▼
+                              POST /api/transaction
+                                            │
+                    SQL: read price · check stock · compute total
+                         decrement stock · write ledger · update balance
+                                            │
+                                            ▼
+                     { message: "Recorded 300 bob cash. Unga stock is now 48." }
+                                            │
+                                            ▼
+                                  spoken back to the user
+```
 
 ## Stack
 
-- Backend: Node.js, Express, `pg`, dotenv — port `5000`
-- Frontend: React, Vite, Tailwind CSS, lucide-react, PWA — port `5173`
-- Database: PostgreSQL
+| Layer    | Choice                                                |
+| -------- | ----------------------------------------------------- |
+| Backend  | Node.js, Express, `pg`, dotenv                        |
+| Frontend | React, Vite, Tailwind CSS, React Router, lucide-react |
+| Database | PostgreSQL                                            |
+| Mobile   | Installable PWA (manifest, service worker, icons)     |
 
-## 1. Create the database and load the schema
+## The eight screens
+
+| #   | Screen                   | What it does                                                                                                            |
+| --- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Login / Sign Up**      | Phone + numeric PIN, sign-up adds business and owner name, language toggle (English / Kiswahili / Mixed)                |
+| 2   | **Onboarding**           | Business type, currency, voice language, then add the first items or skip                                               |
+| 3   | **Dashboard**            | Today's cash, credit and collected; low-stock banner; one grounded proactive tip; big mic                               |
+| 4   | **Inventory**            | Search and low-stock filter, colour-coded levels, add/edit/remove, mic scoped to "add stock"                            |
+| 5   | **Sales / Voice ledger** | Mic with listening animation, live transcript, confirmation card, undo on the last entry, typed fallback                |
+| 6   | **Customers / Madeni**   | Total outstanding, sorted by balance, history per customer, repayment by voice or typing                                |
+| 7   | **Reports**              | Today / Week / Month / Custom, revenue, cost, profit, cash vs credit chart, top sellers, closing stock, share           |
+| 8   | **AI Assistant**         | Chat with suggestion chips; every answer quotes real figures and shows the rows behind them                             |
+
+Navigation is a five-tab bottom bar with a raised centre mic that jumps straight to the voice ledger, so the primary action is always under the thumb.
+
+## Running it
+
+### 1. Database
 
 ```bash
 createdb sautiledger
 psql sautiledger -f backend/init.sql
 ```
 
-If your Postgres user needs a password:
-
-```bash
-psql -U postgres -d sautiledger -f backend/init.sql
-```
-
-## 2. Start the backend
+### 2. Backend
 
 ```bash
 cd backend
-cp .env.example .env
+cp .env.example .env      # then set DATABASE_URL and AUTH_SECRET
 npm install
+npm run db:seed           # demo shop: 0712345678 / PIN 1234
 npm start
 ```
 
-Edit `backend/.env` so `DATABASE_URL` matches your local Postgres, for example:
+The API listens on `http://localhost:5000`. On macOS, AirPlay Receiver usually holds port 5000; either set `PORT=5050` in `backend/.env` or turn AirPlay Receiver off in System Settings → General → AirDrop & Handoff.
 
-```
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sautiledger
-```
-
-Dev with auto-reload:
-
-```bash
-cd backend
-npm run dev
-```
-
-The API listens on `http://localhost:5000`.
-
-On macOS, AirPlay Receiver often occupies port 5000. If `npm start` fails with `EADDRINUSE`, either set `PORT=5050` in `backend/.env` (and `VITE_API_URL=http://localhost:5050` in the frontend) or turn off AirPlay Receiver in System Settings → General → AirDrop & Handoff.
-
-## 3. Start the frontend
-
-In a second terminal:
+### 3. Frontend
 
 ```bash
 cd frontend
+cp .env.example .env.local   # point VITE_API_URL at your backend port
 npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. Use Chrome or Edge — the mic uses `webkitSpeechRecognition`.
+Open `http://localhost:5173` in Chrome or Edge — the mic uses the Web Speech API.
 
-### Install as a PWA
+### Install as an app
 
-The frontend is a Progressive Web App (standalone display, service worker, home-screen icons).
+Chrome and Android show an install banner. On iPhone use Safari → Share → **Add to Home Screen**. The app shell works offline; recording a sale needs the backend, because only the database is allowed to price anything.
 
-- **Chrome / Edge / Android:** tap **Install SautiLedger on this phone** when the banner appears, or use the browser install icon.
-- **iPhone:** Safari → Share → **Add to Home Screen**.
-- Service workers register on localhost in `npm run dev`. For a production-like build:
+## Tests
 
 ```bash
-cd frontend
-npm run build
-npm run preview
+cd backend
+npm run test:e2e
 ```
 
-Ledger writes still need the backend online. The app shell can load offline; recording a sale cannot.
+Fifty checks walk the same API path the eight screens take: signup validation, onboarding, stock maths, overselling, undo reversal, repayments, report arithmetic, assistant grounding, and multi-tenant isolation. The harness deletes the shops it creates.
 
 ## Voice examples
 
-- `Sell two unga cash`
-- `Credit 1 sugar to Mama Jane`
-- `Mama Jane paid 500`
+| Say this                                | It records                       |
+| --------------------------------------- | -------------------------------- |
+| `sell two unga cash`                    | Cash sale, priced from your list |
+| `nimeuza mbili milk na sugar tatu cash` | Two-line cash sale               |
+| `credit 3 packets of unga to Mama Jane` | Credit sale, balance updated     |
+| `Mama Jane amelipa 500`                 | Repayment against her balance    |
+| `add 20 sugar` (on Inventory)           | Restock                          |
 
-`POST /api/parse-intent` currently uses a dummy parser. Swap `dummyParseIntent` in `backend/server.js` for OpenAI or Gemma later. TTS is a stub: `playElevenLabsAudio` in `frontend/src/lib/tts.js` only `console.log`s the spoken confirmation.
+## Where the AI plugs in
+
+| Piece          | File                                | Status                                                                                            |
+| -------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Speech → JSON  | `backend/src/lib/nlu.js`            | Rule-based stand-in. Replace `parseIntent` with an OpenAI/Gemma call returning the same schema.    |
+| Answer wording | `backend/src/services/analytics.js` | Templates filled from SQL. A model may rephrase, never recompute.                                  |
+| Text → speech  | `frontend/src/lib/tts.js`           | `playElevenLabsAudio` logs, then falls back to the browser voice. Drop the ElevenLabs SDK in here. |
+
+Because the intent schema is fixed and the money maths lives in SQL, swapping in a real model changes only how words are understood — never what the books say.

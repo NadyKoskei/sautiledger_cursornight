@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "db:init": "psql \"$DATABASE_URL\" -f init.sql",
+    "db:seed": "node seed.mjs",
+    "test:e2e": "node e2e.mjs"
   },
   "dependencies": {
     "cors": "^2.8.5",

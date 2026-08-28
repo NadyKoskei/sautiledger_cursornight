@@ -28,17 +28,12 @@ body {
   }
 }
 
-@keyframes mic-ring {
-  0% {
-    transform: scale(1);
-    opacity: 0.55;
-  }
-  100% {
-    transform: scale(1.35);
-    opacity: 0;
-  }
+/* Native controls inside sheets should match the app's rounded, calm surfaces. */
+input[type='date'] {
+  -webkit-appearance: none;
+  appearance: none;
 }
 
-.mic-ring {
-  animation: mic-ring 1.4s ease-out infinite;
+::selection {
+  background: rgba(31, 107, 69, 0.18);
 }
