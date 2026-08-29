@@ -1,4 +1,4 @@
-const CACHE = 'sautiledger-v1';
+const CACHE = 'sautiledger-v2';
 const PRECACHE = [
   '/',
   '/index.html',
@@ -29,7 +29,6 @@ self.addEventListener('activate', (event) => {
 function shouldBypass(url) {
   if (url.origin !== self.location.origin) return true;
   if (url.pathname.startsWith('/api')) return true;
-  // Let Vite HMR and source modules through in development.
   if (
     url.pathname.startsWith('/@') ||
     url.pathname.startsWith('/src/') ||
@@ -40,6 +39,20 @@ function shouldBypass(url) {
   return false;
 }
 
+async function appShell(request) {
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(CACHE);
+      await cache.put('/index.html', response.clone());
+      return response;
+    }
+  } catch {
+    // Use the cached shell when the network is down or Render has no file for this path.
+  }
+  return (await caches.match('/index.html')) || (await caches.match('/offline.html'));
+}
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
@@ -48,17 +61,7 @@ self.addEventListener('fetch', (event) => {
   if (shouldBypass(url)) return;
 
   if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(request, copy));
-          return response;
-        })
-        .catch(async () => {
-          return (await caches.match('/index.html')) || (await caches.match('/offline.html'));
-        })
-    );
+    event.respondWith(appShell(request));
     return;
   }
 

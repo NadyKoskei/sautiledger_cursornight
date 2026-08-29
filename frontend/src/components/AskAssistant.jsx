@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Maximize2, Sparkles, X } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { AssistantChat } from './AssistantChat.jsx';
+import { stopSpeech } from '../lib/tts';
 
 /**
  * The assistant follows the shopkeeper around: a floating button that sits just
@@ -15,6 +15,7 @@ export function AskAssistant() {
   // A route change should never leave the panel hanging over the new screen.
   useEffect(() => {
     setOpen(false);
+    stopSpeech();
   }, [pathname]);
 
   useEffect(() => {
@@ -33,7 +34,10 @@ export function AskAssistant() {
         <button
           type="button"
           aria-label="Close assistant"
-          onClick={() => setOpen(false)}
+          onClick={() => {
+            stopSpeech();
+            setOpen(false);
+          }}
           className="fixed inset-0 z-30 bg-ink/30 backdrop-blur-[2px]"
         />
       )}
@@ -67,7 +71,10 @@ export function AskAssistant() {
                 </Link>
                 <button
                   type="button"
-                  onClick={() => setOpen(false)}
+                  onClick={() => {
+                    stopSpeech();
+                    setOpen(false);
+                  }}
                   aria-label="Close assistant"
                   className="flex h-8 w-8 items-center justify-center rounded-full text-dust transition hover:bg-line/60 hover:text-ink"
                 >

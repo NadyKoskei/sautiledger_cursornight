@@ -14,7 +14,7 @@ export default function Customers() {
   const { notify } = useToast();
   const currency = business?.currency || 'KES';
 
-  const [data, setData] = useState({ customers: [], outstanding: 0, debtors: 0 });
+  const [data, setData] = useState({ customers: [], taken: [], outstanding: 0, debtors: 0 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [openId, setOpenId] = useState(null);
@@ -63,13 +63,50 @@ export default function Customers() {
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-dust" />
           <Input
             className="pl-10"
-            placeholder="Search customers"
+            placeholder="Search customers or items"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
         </div>
 
-        <div className="mt-4 space-y-2">
+        {data.taken?.length > 0 && (
+          <section className="mt-5">
+            <h2 className="mb-2 font-display text-lg font-semibold">Taken on credit</h2>
+            <p className="mb-3 text-xs text-dust">Tap a person to record that they paid.</p>
+            <ul className="space-y-2">
+              {data.taken.map((row) => (
+                <li key={row.id}>
+                  <button
+                    type="button"
+                    onClick={() => setOpenId(row.customer_id)}
+                    className="block w-full text-left"
+                  >
+                    <Card className="transition active:scale-[0.99]">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold">{row.customer_name}</p>
+                          <p className="mt-0.5 truncate text-[15px]">
+                            took {row.item_name} × {formatQty(row.qty)}
+                          </p>
+                          <p className="text-[11px] text-dust">
+                            {new Date(row.created_at).toLocaleDateString()} · still owes{' '}
+                            {money(row.balance, { currency })}
+                          </p>
+                        </div>
+                        <span className="shrink-0 font-display text-base font-semibold text-warn">
+                          {money(row.total, { currency })}
+                        </span>
+                      </div>
+                    </Card>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        <h2 className="mb-2 mt-6 font-display text-lg font-semibold">Who owes you</h2>
+        <div className="space-y-2">
           {loading ? (
             <>
               <Skeleton className="h-16" />
@@ -103,7 +140,7 @@ export default function Customers() {
                     <div className="min-w-0">
                       <p className="truncate font-medium">{customer.name}</p>
                       <p className="text-xs text-dust">
-                        {customer.balance > 0 ? 'owes you' : 'all settled'}
+                        {customer.balance > 0 ? 'owes you — tap to record a payment' : 'all settled'}
                       </p>
                     </div>
                   </div>
@@ -173,11 +210,13 @@ function CustomerSheet({ customerId, currency, onClose, onChanged }) {
     },
   });
 
-  async function record() {
+  async function record(payAmount = Number(amount)) {
+    const value = Number(payAmount);
+    if (!value) return;
     setBusy(true);
     try {
       const { message } = await api.recordRepayment(customerId, {
-        amount: Number(amount),
+        amount: value,
         source: speech.listening ? 'voice' : 'manual',
       });
       playElevenLabsAudio(message, { language: business?.language });
@@ -213,7 +252,10 @@ function CustomerSheet({ customerId, currency, onClose, onChanged }) {
           </div>
 
           <div>
-            <span className="mb-1.5 block text-sm font-medium">Record a repayment</span>
+            <span className="mb-1.5 block text-sm font-medium">They paid</span>
+            <p className="mb-2 text-xs text-dust">
+              Update this credit when {detail.customer.name} brings money.
+            </p>
             <div className="flex gap-2">
               <Input
                 type="number"
@@ -233,15 +275,27 @@ function CustomerSheet({ customerId, currency, onClose, onChanged }) {
                 <Mic size={18} />
               </button>
             </div>
-            <Button
-              className="mt-2 w-full"
-              loading={busy}
-              disabled={!Number(amount)}
-              onClick={record}
-            >
-              <HandCoins size={16} />
-              Record repayment
-            </Button>
+            <div className="mt-2 flex gap-2">
+              <Button
+                className="flex-1"
+                loading={busy}
+                disabled={!Number(amount)}
+                onClick={() => record()}
+              >
+                <HandCoins size={16} />
+                Record payment
+              </Button>
+              {detail.customer.balance > 0 && (
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  loading={busy}
+                  onClick={() => record(detail.customer.balance)}
+                >
+                  Pay in full
+                </Button>
+              )}
+            </div>
           </div>
 
           <div>
@@ -263,9 +317,11 @@ function CustomerSheet({ customerId, currency, onClose, onChanged }) {
                         </span>
                       </div>
                       <p className="truncate text-sm">
-                        {row.item_name
-                          ? `${row.item_name} × ${formatQty(row.qty)}`
-                          : 'Cash repayment'}
+                        {row.type === 'credit' && row.item_name
+                          ? `${detail.customer.name} took ${row.item_name} × ${formatQty(row.qty)}`
+                          : row.item_name
+                            ? `${row.item_name} × ${formatQty(row.qty)}`
+                            : `${detail.customer.name} paid`}
                       </p>
                     </div>
                     <span

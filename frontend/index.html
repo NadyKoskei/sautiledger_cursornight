@@ -16,6 +16,13 @@
       content="Voice-first duka inventory. Speak a sale, credit, or repayment."
     />
     <title>SautiLedger</title>
+    <script>
+      (function () {
+        var path = location.pathname;
+        if (path === '/' || path === '/index.html' || location.hash) return;
+        location.replace('/#' + path + location.search);
+      })();
+    </script>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

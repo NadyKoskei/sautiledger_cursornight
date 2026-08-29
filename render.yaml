@@ -9,8 +9,6 @@ services:
     rootDir: backend
     branch: development
     buildCommand: npm install
-    preDeployCommand: node init-db.mjs
-    initialDeployHook: node seed.mjs
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
@@ -37,7 +35,7 @@ services:
     rootDir: frontend
     branch: development
     buildCommand: npm install && npm run build
-    staticPublishPath: frontend/dist
+    staticPublishPath: dist
     routes:
       - type: rewrite
         source: /*

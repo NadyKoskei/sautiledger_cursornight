@@ -22,7 +22,41 @@ customersRouter.get('/', async (req, res, next) => {
     );
 
     const debt = await getOutstandingDebt(req.businessId);
-    return res.json({ customers: rows, outstanding: debt.total, debtors: debt.debtors });
+
+    const taken = await query(
+      `SELECT t.id,
+              t.batch_id,
+              t.item_name,
+              t.qty,
+              t.total,
+              t.created_at,
+              c.id   AS customer_id,
+              c.name AS customer_name,
+              c.balance
+         FROM transactions t
+         JOIN customers c ON c.id = t.customer_id
+        WHERE t.business_id = $1
+          AND t.type = 'credit'
+          AND t.voided_at IS NULL
+          AND t.item_name IS NOT NULL
+          AND c.balance > 0
+          AND ($2 = '' OR c.name ILIKE '%' || $2 || '%' OR t.item_name ILIKE '%' || $2 || '%')
+        ORDER BY t.created_at DESC
+        LIMIT 80`,
+      [req.businessId, search]
+    );
+
+    return res.json({
+      customers: rows,
+      taken: taken.rows.map((row) => ({
+        ...row,
+        qty: Number(row.qty),
+        total: Number(row.total),
+        balance: Number(row.balance),
+      })),
+      outstanding: debt.total,
+      debtors: debt.debtors,
+    });
   } catch (error) {
     return next(error);
   }

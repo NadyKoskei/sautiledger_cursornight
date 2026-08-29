@@ -34,8 +34,14 @@ export function shortDay(value) {
 }
 
 export function summarise(transaction) {
-  if (transaction.type === 'repayment') return 'Repayment';
+  if (transaction.type === 'repayment') {
+    return transaction.customer_name ? `${transaction.customer_name} paid` : 'Repayment';
+  }
   const lines = transaction.lines || [];
   if (lines.length === 0) return 'Entry';
-  return lines.map((line) => `${line.name} x ${qty(line.qty)}`).join(', ');
+  const items = lines.map((line) => `${line.name} x ${qty(line.qty)}`).join(', ');
+  if (transaction.type === 'credit' && transaction.customer_name) {
+    return `${transaction.customer_name} took ${items}`;
+  }
+  return items;
 }

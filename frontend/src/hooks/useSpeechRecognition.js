@@ -67,7 +67,11 @@ export function useSpeechRecognition({ language = 'en', onResult } = {}) {
 
   const transcribe = useCallback(
     async (blob, session) => {
-      if (session.cancelled) return;
+      if (session.cancelled) {
+        setListening(false);
+        setInterim('');
+        return;
+      }
       if (!blob || blob.size < 800) {
         setListening(false);
         setInterim('');
@@ -114,6 +118,20 @@ export function useSpeechRecognition({ language = 'en', onResult } = {}) {
       sessionRef.current = null;
       setListening(false);
     }
+  }, [cleanupSession]);
+
+  const cancel = useCallback(() => {
+    const session = sessionRef.current;
+    if (session) {
+      session.cancelled = true;
+      session.stopping = true;
+      if (session.raf) cancelAnimationFrame(session.raf);
+      if (session.recorder && session.recorder.state !== 'inactive') session.recorder.stop();
+      cleanupSession(session);
+      sessionRef.current = null;
+    }
+    setListening(false);
+    setInterim('');
   }, [cleanupSession]);
 
   const start = useCallback(async () => {
@@ -181,7 +199,7 @@ export function useSpeechRecognition({ language = 'en', onResult } = {}) {
     recorder.onstop = () => {
       const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || 'audio/webm' });
       cleanupSession(session);
-      transcribe(blob, session);
+    transcribe(blob, session);
     };
 
     try {
@@ -249,6 +267,7 @@ export function useSpeechRecognition({ language = 'en', onResult } = {}) {
     supported: canRecord(),
     start,
     stop,
+    cancel,
     setError,
   };
 }

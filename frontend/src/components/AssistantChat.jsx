@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Bot, Mic, Send } from 'lucide-react';
+import { Bot, Mic, RotateCcw, Send, Square } from 'lucide-react';
 import { Card } from './ui.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { api } from '../lib/api';
 import { money } from '../lib/format';
-import { playElevenLabsAudio } from '../lib/tts';
+import { playElevenLabsAudio, stopSpeech } from '../lib/tts';
 
 const DEFAULT_SUGGESTIONS = [
   'What can you do?',
@@ -24,11 +24,13 @@ export function AssistantChat({ className = '', autoFocus = false }) {
   const feedRef = useRef(null);
   const inputRef = useRef(null);
 
+  const introText = `Karibu ${business?.owner_name?.split(' ')[0] || ''}. I am SautiLedger, the voice ledger for your duka. You speak a sale, credit, restock, or repayment; I look up the numbers in your books. Ask what you stock, how much is left, or who owes you.`;
+
   const [messages, setMessages] = useState([
     {
       id: 'intro',
       role: 'assistant',
-      text: `Karibu ${business?.owner_name?.split(' ')[0] || ''}. I am SautiLedger, the voice ledger for your duka. You speak a sale, credit, restock, or repayment; I look up the numbers in your books. Ask what you stock, how much is left, or who owes you.`,
+      text: introText,
     },
   ]);
   const [suggestions, setSuggestions] = useState(DEFAULT_SUGGESTIONS);
@@ -69,6 +71,7 @@ export function AssistantChat({ className = '', autoFocus = false }) {
       const text = String(question || '').trim();
       if (!text || busy) return;
 
+      stopSpeech();
       setDraft('');
       setMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text }]);
       setBusy(true);
@@ -94,8 +97,28 @@ export function AssistantChat({ className = '', autoFocus = false }) {
 
   const speech = useSpeechRecognition({
     language: business?.language,
-    onResult: (text) => ask(text),
+    onResult: (text) => {
+      stopSpeech();
+      setDraft(text);
+      inputRef.current?.focus();
+    },
   });
+
+  function resetChat() {
+    speech.cancel();
+    stopSpeech();
+    setBusy(false);
+    setDraft('');
+    setMessages([
+      {
+        id: 'intro',
+        role: 'assistant',
+        text: introText,
+      },
+    ]);
+  }
+
+  useEffect(() => () => stopSpeech(), []);
 
   useEffect(() => {
     feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: 'smooth' });
@@ -155,7 +178,8 @@ export function AssistantChat({ className = '', autoFocus = false }) {
             ref={inputRef}
             value={speech.listening ? speech.interim || 'Listening…' : draft}
             onChange={(event) => setDraft(event.target.value)}
-            placeholder="Ask about sales, stock, or debts"
+            readOnly={speech.listening}
+            placeholder="Ask about sales, stock, or debts — edit after you speak"
             className="h-10 min-w-0 flex-1 bg-transparent px-2 text-[15px] outline-none placeholder:text-dust/70"
           />
           <button
@@ -167,6 +191,25 @@ export function AssistantChat({ className = '', autoFocus = false }) {
             }`}
           >
             <Mic size={18} />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              speech.cancel();
+              stopSpeech();
+            }}
+            aria-label="Stop the voice"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-dust transition hover:bg-line/60 hover:text-ink"
+          >
+            <Square size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={resetChat}
+            aria-label="Reset conversation"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-dust transition hover:bg-line/60 hover:text-ink"
+          >
+            <RotateCcw size={16} />
           </button>
           <button
             type="submit"

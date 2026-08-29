@@ -79,51 +79,79 @@ npm run dev
 
 Open `http://localhost:5173` in Chrome or Edge — the mic uses the Web Speech API.
 
-## Deploy on Render
+## Deploy on Render (frontend and backend separately)
 
-Postgres is created in the Render dashboard first. `render.yaml` only deploys the API and the frontend, then connects them to that existing database.
+Push `development` to GitHub first. Create **two services** in the dashboard — not one. Deploy the API, copy its URL, then deploy the site.
 
-1. Push this repo to GitHub (`development`).
-2. Copy the database **Internal** URL: dashboard → your Postgres → **Connections** → Internal Database URL.
-3. **New → Blueprint**, pick this repo.
-4. When prompted, paste:
-   - `DATABASE_URL` — that Internal URL
-   - `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID`
-5. Apply. First API deploy creates tables (`node init-db.mjs`) and seeds demo shops once (`node seed.mjs`).
+### 1. Backend (Web Service)
 
-If the API service already exists, skip Blueprint and set **Environment** on **sautiledger-api**:
+Dashboard → **New → Web Service** → this repo.
 
-- `DATABASE_URL` = Internal Database URL
-- `DATABASE_SSL` = `true`
+| Setting | Value |
+| ------- | ----- |
+| Branch | `development` |
+| Root Directory | `backend` |
+| Runtime | Node |
+| Build Command | `npm install` |
+| Pre-Deploy Command | leave empty (schema runs on start) |
+| Start Command | `npm start` |
 
-Then **Manual Deploy**.
+Environment:
 
-Open the **sautiledger** static URL (not the API URL). Login:
+| Key | Value |
+| --- | ----- |
+| `DATABASE_URL` | Postgres **Internal** URL (Connections on your existing Render DB) |
+| `DATABASE_SSL` | `true` |
+| `AUTH_SECRET` | any long random string |
+| `ELEVENLABS_API_KEY` | your `sk_` key |
+| `ELEVENLABS_VOICE_ID` | your voice id |
+| `ELEVENLABS_MODEL_ID` | `eleven_multilingual_v2` |
+| `ELEVENLABS_STT_MODEL_ID` | `scribe_v2` |
+
+Do not set `PORT`. Render sets it.
+
+Deploy, then open `https://YOUR-API.onrender.com/api/health`. You want `"ok": true`. Copy that `https://YOUR-API.onrender.com` URL (no trailing slash).
+
+Seed once from **sautiledger-api → Shell**:
+
+```bash
+node seed.mjs
+```
+
+### 2. Frontend (Static Site)
+
+Dashboard → **New → Static Site** → the **same** repo.
+
+| Setting | Value |
+| ------- | ----- |
+| Branch | `development` |
+| Root Directory | `frontend` |
+| Build Command | `npm install && npm run build` |
+| Publish Directory | `dist` |
+
+Environment (must be set **before** the first build):
+
+| Key | Value |
+| --- | ----- |
+| `VITE_API_URL` | the backend URL from step 1, e.g. `https://sautiledger-api.onrender.com` |
+
+Redirects/rewrites: a catch-all rewrite `/*` → `/index.html` is in `render.yaml`. If you created the static site in the dashboard, add the same rule under **Redirects/Rewrites** so `/customers` is not a 404.
+
+If you change `VITE_API_URL` later, **Clear build cache & deploy** the static site. Vite bakes that URL in at build time.
+
+Open the **static** URL to use the app, not the API URL.
 
 - Open shop: `0701891234` (no PIN)
 - Demo shop: `0712345678` / PIN `1234`
 
-### Seed the Render database
+### Seed from your laptop
 
-Seeding replaces the two demo shops only. It does not drop other shops.
-
-**On Render (API already deployed)**  
-Dashboard → **sautiledger-api** → **Shell**:
-
-```bash
-node init-db.mjs
-node seed.mjs
-```
-
-**From your laptop**  
 Use the database **External** URL (Internal only works inside Render):
 
 ```bash
 cd backend
 DATABASE_URL='postgresql://USER:PASSWORD@HOST/DATABASE' DATABASE_SSL=true npm run db:setup
 ```
-
-Do not put real keys in `render.yaml`.
 
 ## Install as an app
 
