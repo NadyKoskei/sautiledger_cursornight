@@ -35,7 +35,7 @@ services:
     rootDir: frontend
     branch: development
     buildCommand: npm install && npm run build
-    staticPublishPath: frontend/dist
+    staticPublishPath: dist
     routes:
       - type: rewrite
         source: /*

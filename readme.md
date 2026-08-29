@@ -135,7 +135,7 @@ Environment (must be set **before** the first build):
 | --- | ----- |
 | `VITE_API_URL` | the backend URL from step 1, e.g. `https://sautiledger-api.onrender.com` |
 
-Redirects/rewrites: **Add rewrite** `/*` → `/index.html` so React routes work.
+Redirects/rewrites: a catch-all rewrite `/*` → `/index.html` is in `render.yaml`. If you created the static site in the dashboard, add the same rule under **Redirects/Rewrites** so `/customers` is not a 404.
 
 If you change `VITE_API_URL` later, **Clear build cache & deploy** the static site. Vite bakes that URL in at build time.
 
