@@ -5,8 +5,18 @@ const { Pool, types } = pg;
 // Return NUMERIC as JS numbers. Shop-scale money stays well inside float precision.
 types.setTypeParser(types.builtins.NUMERIC, (value) => (value === null ? null : Number(value)));
 
+function useSsl() {
+  const url = process.env.DATABASE_URL || '';
+  return (
+    process.env.DATABASE_SSL === 'true' ||
+    process.env.PGSSLMODE === 'require' ||
+    /render\.com/i.test(url)
+  );
+}
+
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  ssl: useSsl() ? { rejectUnauthorized: false } : undefined,
 });
 
 export function query(text, params) {
