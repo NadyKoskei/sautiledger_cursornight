@@ -42,12 +42,12 @@ export function AskAssistant() {
         />
       )}
 
-      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-md px-5">
+      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 mx-auto w-full max-w-md px-5 lg:max-w-3xl">
         {open ? (
           <div
             role="dialog"
             aria-modal="true"
-            aria-label="Ask SautiLedger"
+            aria-label="Ask Halima"
             className="pointer-events-auto flex h-[65dvh] animate-fade-up flex-col rounded-3xl bg-paper p-4 shadow-card ring-1 ring-line"
           >
             <div className="mb-2 flex shrink-0 items-center justify-between">
@@ -56,8 +56,8 @@ export function AskAssistant() {
                   <Sparkles size={16} />
                 </span>
                 <div>
-                  <p className="text-sm font-semibold leading-tight">Ask SautiLedger</p>
-                  <p className="text-[11px] leading-tight text-dust">Answers from your ledger</p>
+                  <p className="text-sm font-semibold leading-tight">Ask Halima</p>
+                  <p className="text-[11px] leading-tight text-dust">She reads your ledger</p>
                 </div>
               </div>
 
@@ -93,7 +93,7 @@ export function AskAssistant() {
               className="pointer-events-auto flex items-center gap-2 rounded-full bg-ink px-4 py-3 text-sm font-semibold text-white shadow-card transition active:scale-95"
             >
               <Sparkles size={16} />
-              Ask
+              Ask Halima
             </button>
           </div>
         )}

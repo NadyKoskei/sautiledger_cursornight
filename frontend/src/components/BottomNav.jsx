@@ -19,7 +19,7 @@ export function BottomNav() {
       aria-label="Main"
       className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-paper/95 shadow-nav backdrop-blur"
     >
-      <div className="relative mx-auto grid max-w-md grid-cols-5 gap-1 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
+      <div className="relative mx-auto grid max-w-md grid-cols-5 gap-1 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 lg:max-w-3xl">
         {TABS.slice(0, 2).map((tab) => (
           <NavTab key={tab.to} {...tab} />
         ))}
@@ -52,7 +52,7 @@ function NavTab({ to, label, icon: Icon, end }) {
       to={to}
       end={end}
       className={({ isActive }) =>
-        `flex flex-col items-center gap-0.5 rounded-xl py-1 text-[10px] font-semibold transition ${
+        `flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded-xl py-1 text-[11px] font-semibold transition ${
           isActive ? 'text-grove' : 'text-dust'
         }`
       }

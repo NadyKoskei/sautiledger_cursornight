@@ -132,6 +132,115 @@ async function run() {
     body: { action: 'restock', items: [{ name: 'Tomato', qty: 20 }] },
   });
   check('voice restock adds stock', restock.body.items?.[0]?.qty_on_hand === 24, JSON.stringify(restock.body));
+  check('restock spoken message is short', /^Done\. Added /.test(restock.body.message || ''), restock.body.message);
+
+  console.log('\n4b. Halima inventory rules');
+  const sugarItem = await call('/api/items', {
+    method: 'POST',
+    body: { name: 'Sugar', unit: 'kg', qty_on_hand: 10, cost_price: 80, price: 100, low_stock_threshold: 3 },
+  });
+  check('sugar added for stock tests', sugarItem.status === 201);
+
+  const test1 = await call('/api/transaction', {
+    method: 'POST',
+    body: {
+      action: 'credit',
+      items: [{ name: 'Sugar', qty: 2 }],
+      payment_type: 'credit',
+      customer_name: 'Moha',
+    },
+  });
+  check('TEST 1 records 2kg sugar for Moha', test1.status === 200 && test1.body.receipt?.lines?.[0]?.qty_on_hand === 8, JSON.stringify(test1.body));
+  check('TEST 1 names Moha', test1.body.receipt?.customer?.name === 'Moha');
+  check('TEST 1 spoken is brief', /Done\. I recorded 2 kg of Sugar for Moha/.test(test1.body.message || ''), test1.body.message);
+  await call(`/api/transactions/${test1.body.receipt.batch_id}/undo`, { method: 'POST' });
+
+  await call(`/api/items/${sugarItem.body.item.id}`, { method: 'PATCH', body: { qty_on_hand: 0 } });
+  const test2 = await call('/api/transaction', {
+    method: 'POST',
+    body: {
+      action: 'credit',
+      items: [{ name: 'Sugar', qty: 2 }],
+      payment_type: 'credit',
+      customer_name: 'Moha',
+    },
+  });
+  check('TEST 2 rejects empty stock', test2.status === 409 && /out of stock/i.test(test2.body.message || ''), JSON.stringify(test2.body));
+  const afterZero = await call('/api/items?search=sugar');
+  check('TEST 2 sugar stays at 0', afterZero.body.items?.[0]?.qty_on_hand === 0);
+
+  await call(`/api/items/${sugarItem.body.item.id}`, { method: 'PATCH', body: { qty_on_hand: 1 } });
+  const test3 = await call('/api/transaction', {
+    method: 'POST',
+    body: {
+      action: 'credit',
+      items: [{ name: 'Sugar', qty: 2 }],
+      payment_type: 'credit',
+      customer_name: 'Moha',
+    },
+  });
+  check('TEST 3 rejects insufficient stock', test3.status === 409 && /only have 1 kg/i.test(test3.body.message || ''), JSON.stringify(test3.body));
+  const afterOne = await call('/api/items?search=sugar');
+  check('TEST 3 sugar stays at 1', afterOne.body.items?.[0]?.qty_on_hand === 1);
+
+  const riceBefore = await call('/api/items');
+  const riceCount = riceBefore.body.items?.length;
+  const test4 = await call('/api/transaction', {
+    method: 'POST',
+    body: {
+      action: 'credit',
+      items: [{ name: 'Rice', qty: 2 }],
+      payment_type: 'credit',
+      customer_name: 'Moha',
+    },
+  });
+  check('TEST 4 rejects unknown rice', test4.status === 404 && /not in your inventory/i.test(test4.body.message || ''), JSON.stringify(test4.body));
+  const riceAfter = await call('/api/items');
+  check('TEST 4 does not create rice', riceAfter.body.items?.length === riceCount && !riceAfter.body.items?.some((row) => /rice/i.test(row.name)));
+  const sugarUnchanged = await call('/api/items?search=sugar');
+  check('TEST 4 sugar remains 1kg', sugarUnchanged.body.items?.[0]?.qty_on_hand === 1);
+
+  await call(`/api/items/${sugarItem.body.item.id}`, { method: 'PATCH', body: { qty_on_hand: 10 } });
+  const test5 = await call('/api/transaction', {
+    method: 'POST',
+    body: {
+      action: 'credit',
+      items: [{ name: 'sugar', qty: 2 }],
+      payment_type: 'credit',
+      customer_name: 'Moha',
+    },
+  });
+  check('TEST 5 credit deducts sugar', test5.body.receipt?.lines?.[0]?.qty_on_hand === 8);
+  check('TEST 5 Moha debt increases', test5.body.receipt?.customer?.balance === 200, JSON.stringify(test5.body.receipt?.customer));
+  check('TEST 5 is a credit entry', test5.body.receipt?.action === 'credit');
+  await call(`/api/transactions/${test5.body.receipt.batch_id}/undo`, { method: 'POST' });
+
+  const test6 = await call('/api/transaction', {
+    method: 'POST',
+    body: { action: 'restock', items: [{ name: 'Sugar', qty: 10 }] },
+  });
+  check('TEST 6 adds 10kg sugar', test6.body.items?.[0]?.qty_on_hand === 20, JSON.stringify(test6.body));
+  check('TEST 6 spoken is brief', /Done\. Added 10 kg of Sugar/.test(test6.body.message || ''), test6.body.message);
+
+  const test7 = await call('/api/parse-intent', {
+    method: 'POST',
+    body: { transcript: 'Moha took something' },
+  });
+  check(
+    'TEST 7 asks which product',
+    /which product/i.test(test7.body.clarification || '') && !(test7.body.items || []).length,
+    JSON.stringify(test7.body)
+  );
+
+  const kilos = await call('/api/parse-intent', {
+    method: 'POST',
+    body: { transcript: 'Moha took two kgs of sugar' },
+  });
+  check(
+    'speech maps kilos of sugar to the shelf',
+    kilos.body.items?.[0]?.matched === true && kilos.body.items?.[0]?.name === 'Sugar' && kilos.body.items?.[0]?.qty === 2,
+    JSON.stringify(kilos.body)
+  );
 
   console.log('\n5. Sales / Voice ledger');
   const intent = await call('/api/parse-intent', {
@@ -173,7 +282,7 @@ async function run() {
   const sale = await call('/api/transaction', { method: 'POST', body: intent.body });
   check('sale is priced by the database', sale.body.receipt?.total === 50, JSON.stringify(sale.body));
   check('stock decremented', sale.body.receipt?.lines?.[0]?.qty_on_hand === 28);
-  check('spoken message returned', /Recorded 50 bob cash/.test(sale.body.message || ''));
+  check('spoken message returned', /Done\. I recorded 2 bunch of Sukuma/.test(sale.body.message || ''), sale.body.message);
 
   const creditIntent = await call('/api/parse-intent', {
     method: 'POST',

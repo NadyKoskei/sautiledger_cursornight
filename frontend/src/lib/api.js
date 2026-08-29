@@ -34,7 +34,14 @@ async function request(path, { method = 'GET', body, auth = true } = {}) {
   }
 
   const text = await response.text();
-  const payload = text ? JSON.parse(text) : {};
+  let payload = {};
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = { message: response.ok ? '' : 'The server sent an unexpected response.' };
+    }
+  }
 
   if (!response.ok) {
     if (response.status === 401) setToken(null);

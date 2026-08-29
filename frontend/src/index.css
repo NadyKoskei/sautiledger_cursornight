@@ -11,11 +11,13 @@ body,
 
 html {
   @apply bg-grove;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   margin: 0;
-  @apply bg-paper text-ink;
+  @apply bg-paper text-ink antialiased;
+  font-size: 16px;
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
   overscroll-behavior: none;

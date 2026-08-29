@@ -50,6 +50,7 @@ export async function transcribeSpeech({ audioBase64, mimeType, language, keyter
     ? []
     : [
         'SautiLedger',
+        'Halima',
         'sell',
         'restock',
         'credit',

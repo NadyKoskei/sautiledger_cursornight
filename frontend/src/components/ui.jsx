@@ -1,3 +1,5 @@
+import { AlertTriangle, CheckCircle2, HelpCircle, Loader2 } from 'lucide-react';
+
 export function Button({
   as: Tag = 'button',
   variant = 'primary',
@@ -15,8 +17,8 @@ export function Button({
   };
   const sizes = {
     sm: 'h-9 px-3 text-sm rounded-xl',
-    md: 'h-12 px-4 text-[15px] rounded-2xl',
-    lg: 'h-14 px-5 text-base rounded-2xl',
+    md: 'min-h-12 h-12 px-4 text-base rounded-2xl',
+    lg: 'min-h-14 h-14 px-5 text-base rounded-2xl',
   };
 
   return (
@@ -53,7 +55,7 @@ export function Field({ label, hint, error, children, htmlFor }) {
 export function Input({ className = '', ...props }) {
   return (
     <input
-      className={`h-12 w-full rounded-2xl border border-line bg-card px-4 text-[15px] text-ink
+      className={`h-12 w-full rounded-2xl border border-line bg-card px-4 text-base text-ink
         placeholder:text-dust/70 focus:border-grove focus:outline-none focus:ring-2 focus:ring-grove/20
         ${className}`}
       {...props}
@@ -64,7 +66,7 @@ export function Input({ className = '', ...props }) {
 export function Select({ className = '', children, ...props }) {
   return (
     <select
-      className={`h-12 w-full appearance-none rounded-2xl border border-line bg-card px-4 text-[15px]
+      className={`h-12 w-full appearance-none rounded-2xl border border-line bg-card px-4 text-base
         text-ink focus:border-grove focus:outline-none focus:ring-2 focus:ring-grove/20 ${className}`}
       {...props}
     >
@@ -76,7 +78,7 @@ export function Select({ className = '', children, ...props }) {
 export function Card({ className = '', children, ...props }) {
   return (
     <div
-      className={`rounded-2xl bg-card p-4 shadow-card ring-1 ring-line/60 ${className}`}
+      className={`rounded-[1.25rem] bg-card p-4 shadow-card ring-1 ring-line/70 sm:p-5 ${className}`}
       {...props}
     >
       {children}
@@ -118,11 +120,12 @@ export function Badge({ tone = 'neutral', children }) {
     credit: 'bg-warn-light text-warn',
     repayment: 'bg-card text-grove ring-1 ring-grove/40',
     ask: 'bg-grove-light text-grove',
+    warn: 'bg-warn-light text-warn',
     danger: 'bg-danger-light text-danger',
   };
   return (
     <span
-      className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${tones[tone] || tones.neutral}`}
+      className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider ${tones[tone] || tones.neutral}`}
     >
       {children}
     </span>
@@ -131,14 +134,14 @@ export function Badge({ tone = 'neutral', children }) {
 
 export function EmptyState({ icon: Icon, title, description, action }) {
   return (
-    <div className="flex flex-col items-center rounded-2xl border border-dashed border-line px-6 py-10 text-center">
+    <div className="flex flex-col items-center rounded-[1.25rem] border border-dashed border-line bg-card/50 px-6 py-12 text-center">
       {Icon && (
-        <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-grove-light text-grove">
-          <Icon size={22} />
+        <span className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-grove-light text-grove">
+          <Icon size={24} />
         </span>
       )}
-      <p className="font-display text-lg font-semibold">{title}</p>
-      {description && <p className="mt-1 max-w-xs text-sm text-dust">{description}</p>}
+      <p className="font-display text-xl font-semibold">{title}</p>
+      {description && <p className="mt-2 max-w-xs text-base leading-relaxed text-dust">{description}</p>}
       {action && <div className="mt-4">{action}</div>}
     </div>
   );
@@ -161,7 +164,7 @@ export function Sheet({ open, onClose, title, children }) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6">
       <button
         type="button"
         aria-label="Close"
@@ -172,7 +175,7 @@ export function Sheet({ open, onClose, title, children }) {
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative z-10 max-h-[88vh] w-full max-w-md animate-sheet-up overflow-y-auto rounded-t-3xl bg-paper p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+        className="relative z-10 max-h-[88vh] w-full max-w-md animate-sheet-up overflow-y-auto rounded-t-3xl bg-paper p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:max-w-lg sm:rounded-3xl sm:p-6"
       >
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-line" />
         {title && <h2 className="mb-4 font-display text-xl font-semibold">{title}</h2>}
@@ -180,4 +183,38 @@ export function Sheet({ open, onClose, title, children }) {
       </div>
     </div>
   );
+}
+
+export function StatusBanner({ tone = 'info', children }) {
+  const styles = {
+    success: 'bg-grove-light text-grove-dark ring-grove/20',
+    warn: 'bg-warn-light text-warn ring-warn/25',
+    danger: 'bg-danger-light text-danger ring-danger/20',
+    info: 'bg-card text-ink ring-line',
+    working: 'bg-grove-light text-grove-dark ring-grove/20',
+    ask: 'bg-card text-ink ring-line',
+  };
+  const icons = {
+    success: CheckCircle2,
+    warn: AlertTriangle,
+    danger: AlertTriangle,
+    info: HelpCircle,
+    working: Loader2,
+    ask: HelpCircle,
+  };
+  const Icon = icons[tone] || HelpCircle;
+
+  return (
+    <div
+      role={tone === 'danger' || tone === 'warn' ? 'alert' : 'status'}
+      className={`flex items-start gap-3 rounded-2xl px-4 py-3 text-base leading-snug ring-1 ${styles[tone] || styles.info}`}
+    >
+      <Icon size={20} className={`mt-0.5 shrink-0 ${tone === 'working' ? 'animate-spin' : ''}`} />
+      <p className="flex-1">{children}</p>
+    </div>
+  );
+}
+
+export function StockBadge({ status }) {
+  return <Badge tone={status.tone}>{status.label}</Badge>;
 }

@@ -68,6 +68,20 @@ export function useVoiceLedger({ scope = 'sale', onRecorded } = {}) {
           return intent;
         }
 
+        if (intent.clarification) {
+          setProblem(intent.clarification);
+          playElevenLabsAudio(intent.clarification, { language: business?.language });
+          return intent;
+        }
+
+        if (intent.items?.some((item) => item.matched === false)) {
+          const missing = intent.items.find((item) => item.matched === false);
+          const message = `${missing.name} is not in your inventory.`;
+          setProblem(message);
+          playElevenLabsAudio(message, { language: business?.language });
+          return intent;
+        }
+
         if (scope === 'restock' && intent.action !== 'repayment' && intent.action !== 'ask') {
           intent.action = 'restock';
         }
@@ -94,6 +108,7 @@ export function useVoiceLedger({ scope = 'sale', onRecorded } = {}) {
 
         playElevenLabsAudio(result.message, { language: business?.language });
         setReceipt({ ...result.receipt, message: result.message, intent });
+        setProblem('');
         onRecorded?.(result);
         return result;
       } catch (error) {

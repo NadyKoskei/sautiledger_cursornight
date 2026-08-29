@@ -3,7 +3,7 @@ import { CheckCircle2, Keyboard, Undo2 } from 'lucide-react';
 import { MicButton } from '../components/MicButton.jsx';
 import { VoiceDraft } from '../components/VoiceDraft.jsx';
 import { Screen, ScreenHeader } from '../components/Screen.jsx';
-import { Badge, Button, Card, EmptyState, Field, Input, SegmentedControl, Select, Sheet } from '../components/ui.jsx';
+import { Badge, Button, Card, EmptyState, Field, Input, SegmentedControl, Select, Sheet, Skeleton, StatusBanner } from '../components/ui.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useVoiceLedger } from '../hooks/useVoiceLedger';
@@ -11,9 +11,9 @@ import { api } from '../lib/api';
 import { money, qty as formatQty, summarise, time } from '../lib/format';
 
 const PROMPTS = {
-  idle: 'Tap the mic, then check the words before you record. Stop anytime the voice is talking.',
-  listening: 'Listening… say it the way you would to a customer.',
-  working: 'Checking your books…',
+  idle: 'Tap the mic, then check the words before you record.',
+  listening: 'Listening… say it the way you would in the shop.',
+  working: 'Checking inventory…',
 };
 
 export default function Sales() {
@@ -40,7 +40,12 @@ export default function Sales() {
     loadFeed();
   }, [loadFeed]);
 
-  const voice = useVoiceLedger({ onRecorded: loadFeed });
+  const voice = useVoiceLedger({
+    onRecorded: (result) => {
+      notify(result.message, 'success');
+      loadFeed();
+    },
+  });
 
   async function undo(batchId) {
     try {
@@ -57,7 +62,7 @@ export default function Sales() {
 
   return (
     <>
-      <ScreenHeader title="Voice ledger" subtitle="Every sale, spoken once" />
+      <ScreenHeader title="Voice ledger" subtitle="Halima checks your shelf first" />
 
       <Screen>
         <section className="flex flex-col items-center pb-2 pt-4">
@@ -74,11 +79,18 @@ export default function Sales() {
           <VoiceDraft voice={voice} />
 
           {voice.receipt && !voice.error && (
-            <ConfirmationCard
-              receipt={voice.receipt}
-              currency={currency}
-              onUndo={() => undo(voice.receipt.batch_id)}
-            />
+            <>
+              {voice.receipt.action !== 'ask' && (
+                <div className="mt-3 w-full">
+                  <StatusBanner tone="success">Transaction recorded</StatusBanner>
+                </div>
+              )}
+              <ConfirmationCard
+                receipt={voice.receipt}
+                currency={currency}
+                onUndo={() => undo(voice.receipt.batch_id)}
+              />
+            </>
           )}
 
           <Button
@@ -99,7 +111,10 @@ export default function Sales() {
           </div>
 
           {loading ? (
-            <p className="text-sm text-dust">Loading…</p>
+            <div className="space-y-2">
+              <Skeleton className="h-20" />
+              <Skeleton className="h-20" />
+            </div>
           ) : feed.length === 0 ? (
             <EmptyState
               icon={CheckCircle2}

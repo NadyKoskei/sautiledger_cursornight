@@ -70,13 +70,13 @@ export default function Login() {
 
   return (
     <div className="flex min-h-dvh flex-col px-6 pb-10 pt-[max(2.5rem,env(safe-area-inset-top))]">
-      <div className="mx-auto w-full max-w-md">
+      <div className="mx-auto w-full max-w-md lg:max-w-lg">
         <div className="mb-8 flex flex-col items-center text-center">
           <span className="mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-grove text-white shadow-mic">
             <Mic size={30} strokeWidth={1.75} />
           </span>
           <h1 className="font-display text-3xl font-semibold">SautiLedger</h1>
-          <p className="mt-1 text-sm text-dust">Talk to your shop. It keeps the books.</p>
+          <p className="mt-1 text-sm text-dust">Talk to Halima. She keeps the books.</p>
         </div>
 
         <div className="mb-6">

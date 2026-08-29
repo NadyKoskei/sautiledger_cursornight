@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { RotateCcw, Square } from 'lucide-react';
 import { api } from '../lib/api';
-import { Button, Card, Field, Input, SegmentedControl } from './ui.jsx';
+import { Button, Card, Field, Input, SegmentedControl, StatusBanner } from './ui.jsx';
 
 function itemLine(item) {
   const unit = item.unit ? ` ${item.unit}` : '';
@@ -17,10 +17,13 @@ export function VoiceDraft({
   const credit = showCredit && voice.asCredit;
   const items = voice.preview?.items || [];
   const who = voice.creditName.trim() || voice.preview?.customer_name || '';
+  const unmatched = items.some((item) => item.matched === false);
   const canConfirm =
     Boolean(voice.spokenLine) &&
     !voice.busy &&
     !voice.listening &&
+    !voice.preview?.clarification &&
+    !unmatched &&
     (!credit || (who && items.length > 0));
 
   useEffect(() => {
@@ -49,7 +52,7 @@ export function VoiceDraft({
         onChange={(event) => voice.setDraft(event.target.value)}
         readOnly={voice.listening}
         placeholder="Tap the mic, then fix any words here before you record."
-        className="mt-2 w-full resize-none rounded-2xl border border-line bg-paper px-3 py-2.5 text-[15px] leading-snug text-ink outline-none focus:border-grove focus:ring-2 focus:ring-grove/20"
+        className="mt-2 w-full resize-none rounded-2xl border border-line bg-paper px-3 py-2.5 text-base leading-snug text-ink outline-none focus:border-grove focus:ring-2 focus:ring-grove/20"
       />
 
       {showCredit && (
@@ -123,10 +126,43 @@ export function VoiceDraft({
         <p className="mt-2 text-sm text-grove-dark">This will ask the books — it will not record a sale.</p>
       )}
 
-      {voice.error && (
-        <p role="alert" className="mt-2 text-sm text-danger">
-          {voice.error}
-        </p>
+      {voice.busy && (
+        <div className="mt-3">
+          <StatusBanner tone="working">Checking inventory…</StatusBanner>
+        </div>
+      )}
+
+      {voice.preview?.clarification && !voice.busy && !voice.error && (
+        <div className="mt-3">
+          <StatusBanner tone="ask">{voice.preview.clarification}</StatusBanner>
+        </div>
+      )}
+
+      {unmatched && !voice.preview?.clarification && !voice.busy && (
+        <div className="mt-3">
+          <StatusBanner tone="warn">
+            {items.find((item) => item.matched === false)?.name || 'That product'} is not in your
+            inventory
+          </StatusBanner>
+        </div>
+      )}
+
+      {voice.error && !voice.busy && (
+        <div className="mt-3">
+          <StatusBanner
+            tone={
+              /out of stock|can’t record|can't record|not in your inventory|not in stock/i.test(
+                voice.error
+              )
+                ? 'warn'
+                : /which product|didn’t understand|couldn’t find|did not catch/i.test(voice.error)
+                  ? 'ask'
+                  : 'danger'
+            }
+          >
+            {voice.error}
+          </StatusBanner>
+        </div>
       )}
 
       <div className="mt-3 flex flex-wrap gap-2">

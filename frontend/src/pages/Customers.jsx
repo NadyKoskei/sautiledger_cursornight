@@ -72,8 +72,8 @@ export default function Customers() {
         {data.taken?.length > 0 && (
           <section className="mt-5">
             <h2 className="mb-2 font-display text-lg font-semibold">Taken on credit</h2>
-            <p className="mb-3 text-xs text-dust">Tap a person to record that they paid.</p>
-            <ul className="space-y-2">
+            <p className="mb-3 text-sm text-dust">Tap a person to record that they paid.</p>
+            <ul className="grid gap-2 lg:grid-cols-2">
               {data.taken.map((row) => (
                 <li key={row.id}>
                   <button
@@ -106,13 +106,14 @@ export default function Customers() {
         )}
 
         <h2 className="mb-2 mt-6 font-display text-lg font-semibold">Who owes you</h2>
-        <div className="space-y-2">
+        <div className="grid gap-2 lg:grid-cols-2">
           {loading ? (
             <>
               <Skeleton className="h-16" />
               <Skeleton className="h-16" />
             </>
           ) : data.customers.length === 0 ? (
+            <div className="lg:col-span-2">
             <EmptyState
               icon={Users}
               title="No customers yet"
@@ -124,6 +125,7 @@ export default function Customers() {
                 </Button>
               }
             />
+            </div>
           ) : (
             data.customers.map((customer) => (
               <button
