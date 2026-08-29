@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Boxes, Package, Plus, Search, Trash2 } from 'lucide-react';
 import { MicButton } from '../components/MicButton.jsx';
+import { VoiceDraft } from '../components/VoiceDraft.jsx';
 import { Screen, ScreenHeader } from '../components/Screen.jsx';
 import { Button, Card, EmptyState, Field, Input, SegmentedControl, Select, Sheet, Skeleton } from '../components/ui.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -95,18 +96,16 @@ export default function Inventory() {
         </div>
 
         <p className="mt-2 text-xs text-dust">
-          Mic here adds stock or answers about this shop. Say{' '}
+          Mic here adds stock or answers about this shop. Check the words, then record. Say{' '}
           <span className="text-ink">“add 20 sugar”</span> or{' '}
           <span className="text-ink">“what is on my shelf?”</span>
         </p>
 
-        {(voice.interim || voice.error || voice.receipt?.message) && (
-          <p
-            className={`mt-2 rounded-2xl px-4 py-2.5 text-sm ${
-              voice.error ? 'bg-danger-light text-danger' : 'bg-grove-light text-grove-dark'
-            }`}
-          >
-            {voice.error || voice.receipt?.message || voice.interim}
+        <VoiceDraft voice={voice} confirmLabel="Add this stock" showCredit={false} />
+
+        {voice.receipt?.message && (
+          <p className="mt-2 rounded-2xl bg-grove-light px-4 py-2.5 text-sm text-grove-dark">
+            {voice.receipt.message}
           </p>
         )}
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, Keyboard, Undo2 } from 'lucide-react';
 import { MicButton } from '../components/MicButton.jsx';
+import { VoiceDraft } from '../components/VoiceDraft.jsx';
 import { Screen, ScreenHeader } from '../components/Screen.jsx';
 import { Badge, Button, Card, EmptyState, Field, Input, SegmentedControl, Select, Sheet } from '../components/ui.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -10,7 +11,7 @@ import { api } from '../lib/api';
 import { money, qty as formatQty, summarise, time } from '../lib/format';
 
 const PROMPTS = {
-  idle: 'Tap the mic: record a sale, or ask what SautiLedger can do and what is on your shelf.',
+  idle: 'Tap the mic, then check the words before you record. Stop anytime the voice is talking.',
   listening: 'Listening… say it the way you would to a customer.',
   working: 'Checking your books…',
 };
@@ -53,7 +54,6 @@ export default function Sales() {
   }
 
   const status = voice.busy ? 'working' : voice.listening ? 'listening' : 'idle';
-  const heard = voice.interim || voice.transcript;
 
   return (
     <>
@@ -71,23 +71,7 @@ export default function Sales() {
             {PROMPTS[status]}
           </p>
 
-          {heard && (
-            <Card className="mt-1 w-full animate-fade-up">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-dust">
-                {voice.listening ? 'Hearing' : 'Heard'}
-              </p>
-              <p className="mt-1 text-[15px] leading-snug">{heard}</p>
-            </Card>
-          )}
-
-          {voice.error && (
-            <p
-              role="alert"
-              className="mt-3 w-full rounded-2xl bg-danger-light px-4 py-3 text-sm text-danger"
-            >
-              {voice.error}
-            </p>
-          )}
+          <VoiceDraft voice={voice} />
 
           {voice.receipt && !voice.error && (
             <ConfirmationCard
@@ -137,7 +121,9 @@ export default function Sales() {
                       </div>
                       <p className="truncate text-[15px] font-medium">{summarise(entry)}</p>
                       <p className="truncate text-xs text-dust">
-                        {entry.customer_name || (entry.payment_type === 'credit' ? 'Credit' : 'Cash')}
+                        {entry.type === 'credit'
+                          ? 'On credit'
+                          : entry.customer_name || (entry.payment_type === 'credit' ? 'Credit' : 'Cash')}
                       </p>
                     </div>
 
@@ -179,13 +165,21 @@ export default function Sales() {
 
 function ConfirmationCard({ receipt, currency, onUndo }) {
   const isAsk = receipt.action === 'ask';
+  const isCredit = receipt.action === 'credit';
 
   return (
-    <Card className="mt-3 w-full animate-fade-up ring-grove/30">
+    <Card className={`mt-3 w-full animate-fade-up ${isCredit ? 'ring-warn/40' : 'ring-grove/30'}`}>
       <div className="flex items-start gap-2">
-        <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-grove" />
+        <CheckCircle2 size={18} className={`mt-0.5 shrink-0 ${isCredit ? 'text-warn' : 'text-grove'}`} />
         <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-medium leading-snug text-grove-dark">{receipt.message}</p>
+          {isCredit && (
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-warn">
+              Items taken on credit
+            </p>
+          )}
+          <p className={`text-[15px] font-medium leading-snug ${isCredit ? 'text-ink' : 'text-grove-dark'}`}>
+            {receipt.message}
+          </p>
 
           {receipt.lines?.length > 0 && (
             <ul className="mt-3 space-y-1 border-t border-line pt-3">
@@ -202,9 +196,14 @@ function ConfirmationCard({ receipt, currency, onUndo }) {
 
           <div className="mt-3 flex items-center justify-between border-t border-line pt-3">
             <div className="flex items-center gap-2">
-              <Badge tone={receipt.action}>{isAsk ? 'answer' : receipt.action}</Badge>
+              <Badge tone={receipt.action}>{isAsk ? 'answer' : isCredit ? 'credit' : receipt.action}</Badge>
               {receipt.customer && (
-                <span className="text-xs text-dust">{receipt.customer.name}</span>
+                <span className="text-xs text-dust">
+                  {receipt.customer.name}
+                  {isCredit && receipt.customer.balance != null
+                    ? ` · owes ${money(receipt.customer.balance, { currency })}`
+                    : ''}
+                </span>
               )}
             </div>
             {!isAsk && (
@@ -265,7 +264,7 @@ function ManualEntrySheet({ open, currency, onClose, onSaved }) {
   }
 
   return (
-    <Sheet open={open} onClose={onClose} title="Type the sale">
+    <Sheet open={open} onClose={onClose} title={form.payment === 'credit' ? 'Items taken on credit' : 'Type the sale'}>
       <div className="space-y-4">
         <Field label="Item">
           <Select value={form.item} onChange={(event) => setForm({ ...form, item: event.target.value })}>
@@ -296,13 +295,13 @@ function ManualEntrySheet({ open, currency, onClose, onSaved }) {
             onChange={(payment) => setForm({ ...form, payment })}
             options={[
               { value: 'cash', label: 'Cash' },
-              { value: 'credit', label: 'Credit' },
+              { value: 'credit', label: 'Credit / madeni' },
             ]}
           />
         </div>
 
         {form.payment === 'credit' && (
-          <Field label="Customer" hint="A new name is added to your book automatically">
+          <Field label="Who took them" hint="A new name is added to your madeni book automatically">
             <Input
               list="customer-names"
               placeholder="Mama Jane"
@@ -325,7 +324,7 @@ function ManualEntrySheet({ open, currency, onClose, onSaved }) {
         </div>
 
         <Button size="lg" className="w-full" loading={busy} onClick={save}>
-          Record sale
+          {form.payment === 'credit' ? 'Record on credit' : 'Record sale'}
         </Button>
       </div>
     </Sheet>

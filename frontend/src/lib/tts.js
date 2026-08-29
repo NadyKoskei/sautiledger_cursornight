@@ -16,6 +16,26 @@ const LANG_VOICE = {
 };
 
 let current = null;
+let playGeneration = 0;
+let abortController = null;
+const speakingListeners = new Set();
+
+function notifySpeaking(active) {
+  speakingListeners.forEach((listener) => listener(Boolean(active)));
+}
+
+export function subscribeSpeaking(listener) {
+  speakingListeners.add(listener);
+  return () => speakingListeners.delete(listener);
+}
+
+export function stopSpeech() {
+  playGeneration += 1;
+  abortController?.abort();
+  abortController = null;
+  stopCurrent();
+  notifySpeaking(false);
+}
 
 function speakWithBrowser(text, language) {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
@@ -25,9 +45,12 @@ function speakWithBrowser(text, language) {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = LANG_VOICE[language] || 'en-KE';
     utterance.rate = 1;
+    utterance.onend = () => notifySpeaking(false);
+    utterance.onerror = () => notifySpeaking(false);
+    notifySpeaking(true);
     window.speechSynthesis.speak(utterance);
   } catch {
-    // Speech output is a nicety; never let it break a recorded sale.
+    notifySpeaking(false);
   }
 }
 
@@ -43,12 +66,13 @@ function stopCurrent() {
   }
 }
 
-async function speakWithElevenLabs(text) {
+async function speakWithElevenLabs(text, signal) {
   const token = getToken();
   if (!token) throw new Error('not signed in');
 
   const response = await fetch(`${API_BASE}/api/tts`, {
     method: 'POST',
+    signal,
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
@@ -70,11 +94,14 @@ async function speakWithElevenLabs(text) {
   audio.onended = () => {
     URL.revokeObjectURL(url);
     if (current === audio) current = null;
+    notifySpeaking(false);
   };
   audio.onerror = () => {
     URL.revokeObjectURL(url);
     if (current === audio) current = null;
+    notifySpeaking(false);
   };
+  notifySpeaking(true);
   await audio.play();
 }
 
@@ -82,5 +109,14 @@ export function playElevenLabsAudio(text, { language = 'en' } = {}) {
   const spoken = String(text || '').trim();
   if (!spoken) return;
 
-  speakWithElevenLabs(spoken).catch(() => speakWithBrowser(spoken, language));
+  const generation = playGeneration + 1;
+  playGeneration = generation;
+  abortController?.abort();
+  abortController = new AbortController();
+  const { signal } = abortController;
+
+  speakWithElevenLabs(spoken, signal).catch((error) => {
+    if (error?.name === 'AbortError' || generation !== playGeneration) return;
+    speakWithBrowser(spoken, language);
+  });
 }

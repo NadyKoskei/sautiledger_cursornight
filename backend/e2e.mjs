@@ -146,8 +146,8 @@ async function run() {
     body: { transcript: 'Moha took 2kgs of sugar' },
   });
   check(
-    'customer-first sale treats Moha as the customer',
-    moha.body.action === 'sale' &&
+    'customer-first credit names Moha',
+    moha.body.action === 'credit' &&
       moha.body.customer_name === 'Moha' &&
       /sugar/i.test(moha.body.items?.[0]?.name || '') &&
       moha.body.items?.[0]?.qty === 2,
@@ -211,6 +211,11 @@ async function run() {
   });
   const customers = await call('/api/customers');
   check('outstanding total is computed', customers.body.outstanding === 200);
+  check(
+    'credit items list names the person',
+    customers.body.taken?.some((row) => row.customer_name === 'Mama Njeri' && /Tomato/i.test(row.item_name || '')),
+    JSON.stringify(customers.body.taken)
+  );
   const customerId = customers.body.customers.find((row) => row.name === 'Mama Njeri').id;
 
   const detail = await call(`/api/customers/${customerId}`);
@@ -222,11 +227,41 @@ async function run() {
   });
   check('repayment reduces balance', repayment.body.receipt?.customer?.balance === 50);
 
+  const stillOwes = await call('/api/customers');
+  check(
+    'credit list stays while they still owe',
+    stillOwes.body.taken?.some((row) => row.customer_name === 'Mama Njeri'),
+    JSON.stringify(stillOwes.body.taken)
+  );
+
+  const settle = await call(`/api/customers/${customerId}/repayment`, {
+    method: 'POST',
+    body: { amount: 50 },
+  });
+  check('full payment clears the balance', settle.body.receipt?.customer?.balance === 0);
+
+  const settled = await call('/api/customers');
+  check(
+    'paid credits leave the taken list',
+    !settled.body.taken?.some((row) => row.customer_name === 'Mama Njeri'),
+    JSON.stringify(settled.body.taken)
+  );
+
   const overpay = await call(`/api/customers/${customerId}/repayment`, {
     method: 'POST',
     body: { amount: 0 },
   });
   check('zero repayment is rejected', overpay.status === 400);
+
+  await call('/api/transaction', {
+    method: 'POST',
+    body: {
+      action: 'credit',
+      items: [{ name: 'Tomato', qty: 1 }],
+      payment_type: 'credit',
+      customer_name: 'Mama Njeri',
+    },
+  });
 
   console.log('\n7. Reports');
   for (const range of ['today', 'week', 'month']) {

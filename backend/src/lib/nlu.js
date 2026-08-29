@@ -28,6 +28,7 @@ const NOISE_WORDS = new Set([
 const SALE_WORDS =
   /\b(sell|sold|sale|nimeuza|uza|nauza|took|take|takes|taken|bought|buy|buys)\b/;
 const CUSTOMER_FIRST_SALE = /\b(took|take|takes|taken|bought|buy|buys)\b/;
+const TOOK_WORDS = /\b(took|take|takes|taken|amechukua|alichukua|chukua)\b/;
 const CREDIT_WORDS = /\b(credit|deni|mkopo|nikope|akope|on\s+account)\b/;
 const REPAYMENT_WORDS = /\b(repay|repaid|repayment|paid|pay|amelipa|alilipa|ameshalipa|lipa|malipo)\b/;
 const RESTOCK_WORDS = /\b(add|added|restock|stock\s*in|received|receive|nimeongeza|ongeza|niliweka)\b/;
@@ -177,7 +178,7 @@ export function parseIntent(transcript, { catalog = [] } = {}) {
 
   if (REPAYMENT_WORDS.test(text) && !SALE_WORDS.test(text)) {
     action = 'repayment';
-  } else if (CREDIT_WORDS.test(text)) {
+  } else if (CREDIT_WORDS.test(text) || (TOOK_WORDS.test(text) && !/\bcash\b/.test(text))) {
     action = 'credit';
     paymentType = 'credit';
   } else if (RESTOCK_WORDS.test(text) && !SALE_WORDS.test(text)) {

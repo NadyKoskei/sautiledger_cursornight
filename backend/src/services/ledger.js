@@ -206,11 +206,20 @@ async function recordSale(client, businessId, intent, { source, transcript }) {
   const spokenStock = recorded
     .map((line) => `${line.name} stock is now ${formatQty(line.qty_on_hand)}`)
     .join('. ');
-  const who = customer ? ` for ${customer.name}` : '';
-  const label = action === 'credit' ? 'on credit' : 'cash';
+
+  let message;
+  if (action === 'credit' && customer) {
+    const taken = recorded
+      .map((line) => `${line.name} × ${formatQty(line.qty)}`)
+      .join(', ');
+    message = `${customer.name} took ${taken} on credit, ${formatAmount(total)} bob. Balance is now ${formatAmount(balance)} bob. ${spokenStock}.`;
+  } else {
+    const who = customer ? ` for ${customer.name}` : '';
+    message = `Recorded ${formatAmount(total)} bob cash${who}. ${spokenStock}.`;
+  }
 
   return {
-    message: `Recorded ${formatAmount(total)} bob ${label}${who}. ${spokenStock}.`,
+    message,
     receipt: {
       batch_id: batchId,
       action,
