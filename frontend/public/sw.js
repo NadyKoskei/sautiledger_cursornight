@@ -1,4 +1,4 @@
-const CACHE = 'sautiledger-v2';
+const CACHE = 'sautiledger-v3';
 const PRECACHE = [
   '/',
   '/index.html',

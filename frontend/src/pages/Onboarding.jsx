@@ -63,7 +63,7 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-md flex-col px-5 pb-10 pt-[max(2rem,env(safe-area-inset-top))]">
+    <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-10 pt-[max(2rem,env(safe-area-inset-top))] lg:max-w-lg">
       <div className="mb-6 flex items-center gap-2">
         {[1, 2].map((index) => (
           <span

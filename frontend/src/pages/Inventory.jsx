@@ -3,12 +3,12 @@ import { Boxes, Package, Plus, Search, Trash2 } from 'lucide-react';
 import { MicButton } from '../components/MicButton.jsx';
 import { VoiceDraft } from '../components/VoiceDraft.jsx';
 import { Screen, ScreenHeader } from '../components/Screen.jsx';
-import { Button, Card, EmptyState, Field, Input, SegmentedControl, Select, Sheet, Skeleton } from '../components/ui.jsx';
+import { Badge, Button, Card, EmptyState, Field, Input, SegmentedControl, Select, Sheet, Skeleton, StockBadge } from '../components/ui.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useVoiceLedger } from '../hooks/useVoiceLedger';
 import { api } from '../lib/api';
-import { money, qty as formatQty } from '../lib/format';
+import { money, qty as formatQty, stockStatus } from '../lib/format';
 
 const BLANK = {
   name: '',
@@ -121,21 +121,22 @@ export default function Inventory() {
           />
         </div>
 
-        <div className="mt-4 space-y-2">
+        <div className="mt-4 grid gap-3 sm:grid-cols-1 lg:grid-cols-2">
           {loading ? (
             <>
-              <Skeleton className="h-20" />
-              <Skeleton className="h-20" />
-              <Skeleton className="h-20" />
+              <Skeleton className="h-24" />
+              <Skeleton className="h-24" />
+              <Skeleton className="h-24" />
             </>
           ) : items.length === 0 ? (
+            <div className="lg:col-span-2">
             <EmptyState
               icon={Boxes}
               title={search ? 'Nothing matches that' : 'Your shelf is empty'}
               description={
                 search
                   ? 'Try a different word.'
-                  : 'Add what you sell so the app can price it for you.'
+                  : 'Add what you sell so Halima can check stock before she records anything.'
               }
               action={
                 !search && (
@@ -146,8 +147,11 @@ export default function Inventory() {
                 )
               }
             />
+            </div>
           ) : (
-            items.map((item) => (
+            items.map((item) => {
+              const status = stockStatus(item);
+              return (
               <button
                 key={item.id}
                 type="button"
@@ -156,38 +160,33 @@ export default function Inventory() {
               >
                 <Card className="flex items-center justify-between gap-3 transition active:scale-[0.99]">
                   <div className="min-w-0">
-                    <p className="truncate font-medium">{item.name}</p>
-                    <p className="text-xs text-dust">
-                      {money(item.price, { currency })} per {item.unit}
+                    <p className="truncate text-lg font-semibold">{item.name}</p>
+                    <p className="mt-0.5 text-sm text-dust">
+                      {formatQty(item.qty_on_hand)} {item.unit}
+                      <span className="text-dust/80"> · {money(item.price, { currency })} each</span>
                     </p>
+                    <div className="mt-2">
+                      <StockBadge status={status} />
+                    </div>
                   </div>
                   <div className="shrink-0 text-right">
                     <p
-                      className={`font-display text-lg font-semibold ${
-                        Number(item.qty_on_hand) <= 0
+                      className={`font-display text-2xl font-semibold ${
+                        status.tone === 'danger'
                           ? 'text-danger'
-                          : item.low_stock
+                          : status.tone === 'warn'
                             ? 'text-warn'
                             : 'text-ink'
                       }`}
                     >
                       {formatQty(item.qty_on_hand)}
                     </p>
-                    <p
-                      className={`text-[11px] font-semibold uppercase tracking-wide ${
-                        Number(item.qty_on_hand) <= 0
-                          ? 'text-danger'
-                          : item.low_stock
-                            ? 'text-warn'
-                            : 'text-dust'
-                      }`}
-                    >
-                      {Number(item.qty_on_hand) <= 0 ? 'Out of stock' : item.low_stock ? 'Low' : 'in stock'}
-                    </p>
+                    <p className="text-xs text-dust">{item.unit}</p>
                   </div>
                 </Card>
               </button>
-            ))
+              );
+            })
           )}
         </div>
       </Screen>

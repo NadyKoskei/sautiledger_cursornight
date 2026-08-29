@@ -45,3 +45,12 @@ export function summarise(transaction) {
   }
   return items;
 }
+
+export function stockStatus(item) {
+  const onHand = Number(item?.qty_on_hand);
+  if (onHand <= 0) return { label: 'OUT OF STOCK', tone: 'danger' };
+  if (item?.low_stock || onHand <= Number(item?.low_stock_threshold)) {
+    return { label: 'LOW STOCK', tone: 'warn' };
+  }
+  return { label: 'IN STOCK', tone: 'sale' };
+}

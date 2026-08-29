@@ -1,5 +1,6 @@
 import { formatAmount, formatQty } from '../lib/format.js';
 import { withTransaction } from '../db.js';
+import { isPlaceholderName, matchCatalogItem } from '../lib/matchItem.js';
 
 export class LedgerError extends Error {
   constructor(status, message) {
@@ -8,21 +9,27 @@ export class LedgerError extends Error {
   }
 }
 
-async function findItem(client, businessId, name) {
+async function loadShelf(client, businessId) {
   const { rows } = await client.query(
     `SELECT id, name, unit, qty_on_hand, cost_price, price, low_stock_threshold
        FROM items
       WHERE business_id = $1
         AND archived_at IS NULL
-        AND name ILIKE $2
-      ORDER BY CASE WHEN lower(name) = lower($3) THEN 0
-                    WHEN name ILIKE $4 THEN 1
-                    ELSE 2 END,
-               length(name)
-      LIMIT 1`,
-    [businessId, `%${name}%`, name, `${name}%`]
+      FOR UPDATE`,
+    [businessId]
   );
-  return rows[0] || null;
+  return rows;
+}
+
+function spokenLine(qty, unit, name) {
+  const unitPart = unit ? ` ${unit}` : '';
+  return `${formatQty(qty)}${unitPart} of ${name}`;
+}
+
+function missingProductMessage(name, { sale = true } = {}) {
+  const label = String(name || 'that product').trim() || 'that product';
+  if (!sale) return `${label} is not in your inventory.`;
+  return `${label} is not in your inventory, so I haven’t recorded the sale.`;
 }
 
 async function findOrCreateCustomer(client, businessId, name) {
@@ -97,7 +104,7 @@ async function recordRepayment(client, businessId, intent, { source, transcript 
   const balance = updated.rows[0].balance;
 
   return {
-    message: `Recorded ${formatAmount(amount)} bob repayment from ${updated.rows[0].name}. Balance is now ${formatAmount(balance)} bob.`,
+    message: `Done. Recorded ${formatAmount(amount)} bob from ${updated.rows[0].name}.`,
     receipt: {
       batch_id: inserted.rows[0].batch_id,
       action: 'repayment',
@@ -113,12 +120,52 @@ async function recordRepayment(client, businessId, intent, { source, transcript 
 async function recordSale(client, businessId, intent, { source, transcript }) {
   const action = intent.action;
   const lines = Array.isArray(intent.items) ? intent.items : [];
-
-  if (lines.length === 0) throw new LedgerError(400, 'Sorry, I did not catch which item to record.');
-
   const customerName = String(intent.customer_name || '').trim();
+
+  if (lines.length === 0) {
+    if (customerName) throw new LedgerError(400, `Which product did ${customerName} take?`);
+    throw new LedgerError(400, 'I couldn’t find that product in your inventory.');
+  }
+
   if (action === 'credit' && !customerName) {
     throw new LedgerError(400, 'Sorry, I need the customer name to put this on credit.');
+  }
+
+  const shelf = await loadShelf(client, businessId);
+  const prepared = [];
+
+  for (const line of lines) {
+    const name = String(line?.name || '').trim();
+    const qty = Number(line?.qty);
+
+    if (!Number.isFinite(qty) || qty <= 0) {
+      throw new LedgerError(400, 'Sorry, I need a valid item and quantity.');
+    }
+    if (!name || isPlaceholderName(name)) {
+      throw new LedgerError(
+        400,
+        customerName ? `Which product did ${customerName} take?` : 'Which product was that?'
+      );
+    }
+
+    const item = matchCatalogItem(name, shelf);
+    if (!item) throw new LedgerError(404, missingProductMessage(name));
+
+    const onHand = Number(item.qty_on_hand);
+    if (onHand <= 0) {
+      throw new LedgerError(
+        409,
+        `Sorry, ${item.name.toLowerCase()} is currently out of stock. I haven’t recorded the transaction.`
+      );
+    }
+    if (onHand < qty) {
+      throw new LedgerError(
+        409,
+        `You only have ${formatQty(onHand)} ${item.unit} of ${item.name.toLowerCase()} in stock. I can’t record ${formatQty(qty)} ${item.unit}.`
+      );
+    }
+
+    prepared.push({ item, qty });
   }
 
   const customer = customerName
@@ -133,25 +180,7 @@ async function recordSale(client, businessId, intent, { source, transcript }) {
   let total = 0;
   let createdAt = null;
 
-  for (const line of lines) {
-    const name = String(line?.name || '').trim();
-    const qty = Number(line?.qty);
-
-    if (!name || !Number.isFinite(qty) || qty <= 0) {
-      throw new LedgerError(400, 'Sorry, I need a valid item and quantity.');
-    }
-
-    const item = await findItem(client, businessId, name);
-    if (!item) throw new LedgerError(404, `Sorry, ${name} is not in your inventory.`);
-
-    if (Number(item.qty_on_hand) < qty) {
-      throw new LedgerError(
-        409,
-        `Sorry, you only have ${formatQty(item.qty_on_hand)} ${item.unit} of ${item.name} left.`
-      );
-    }
-
-    // Price and line total come from the row itself, never from the caller.
+  for (const { item, qty } of prepared) {
     const updated = await client.query(
       `UPDATE items
           SET qty_on_hand = qty_on_hand - $1, updated_at = NOW()
@@ -162,6 +191,7 @@ async function recordSale(client, businessId, intent, { source, transcript }) {
     if (!updated.rows[0]) {
       throw new LedgerError(409, `Sorry, ${item.name} stock changed. Please try again.`);
     }
+    item.qty_on_hand = Number(updated.rows[0].qty_on_hand);
 
     const inserted = await client.query(
       `INSERT INTO transactions
@@ -203,20 +233,9 @@ async function recordSale(client, businessId, intent, { source, transcript }) {
     balance = Number(updated.rows[0].balance);
   }
 
-  const spokenStock = recorded
-    .map((line) => `${line.name} stock is now ${formatQty(line.qty_on_hand)}`)
-    .join('. ');
-
-  let message;
-  if (action === 'credit' && customer) {
-    const taken = recorded
-      .map((line) => `${line.name} × ${formatQty(line.qty)}`)
-      .join(', ');
-    message = `${customer.name} took ${taken} on credit, ${formatAmount(total)} bob. Balance is now ${formatAmount(balance)} bob. ${spokenStock}.`;
-  } else {
-    const who = customer ? ` for ${customer.name}` : '';
-    message = `Recorded ${formatAmount(total)} bob cash${who}. ${spokenStock}.`;
-  }
+  const who = customer ? ` for ${customer.name}` : '';
+  const spoken = recorded.map((line) => spokenLine(line.qty, line.unit, line.name)).join(' and ');
+  const message = `Done. I recorded ${spoken}${who}.`;
 
   return {
     message,
@@ -235,31 +254,33 @@ async function recordSale(client, businessId, intent, { source, transcript }) {
 /** Adds stock back in — the "add 20 sugar" voice shortcut on the Inventory screen. */
 export async function restockItems(businessId, items) {
   return withTransaction(async (client) => {
+    const shelf = await loadShelf(client, businessId);
     const updated = [];
 
     for (const line of items || []) {
       const name = String(line?.name || '').trim();
       const qty = Number(line?.qty);
-      if (!name || !Number.isFinite(qty) || qty <= 0) {
+      if (!name || isPlaceholderName(name) || !Number.isFinite(qty) || qty <= 0) {
         throw new LedgerError(400, 'Sorry, I need a valid item and quantity to add.');
       }
 
-      const item = await findItem(client, businessId, name);
-      if (!item) throw new LedgerError(404, `Sorry, ${name} is not in your inventory.`);
+      const item = matchCatalogItem(name, shelf);
+      if (!item) throw new LedgerError(404, missingProductMessage(name, { sale: false }));
 
       const result = await client.query(
         `UPDATE items SET qty_on_hand = qty_on_hand + $1, updated_at = NOW()
           WHERE id = $2 RETURNING name, unit, qty_on_hand`,
         [qty, item.id]
       );
+      item.qty_on_hand = Number(result.rows[0].qty_on_hand);
       updated.push(result.rows[0]);
     }
 
-    const spoken = updated
-      .map((row) => `${row.name} stock is now ${formatQty(row.qty_on_hand)}`)
-      .join('. ');
+    const added = updated
+      .map((row, index) => spokenLine(Number(items[index]?.qty), row.unit, row.name))
+      .join(' and ');
 
-    return { message: `Stock updated. ${spoken}.`, items: updated };
+    return { message: `Done. Added ${added}.`, items: updated };
   });
 }
 

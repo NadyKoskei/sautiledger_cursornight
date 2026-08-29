@@ -1,6 +1,7 @@
 import { query } from '../db.js';
 import { formatAmount, formatQty, resolveRange } from '../lib/format.js';
 import { classifyQuestion, extractStockQuery, inferPeriod } from '../lib/nlu.js';
+import { matchCatalogItem } from '../lib/matchItem.js';
 
 /**
  * Every figure the app displays or speaks is produced by these queries.
@@ -57,20 +58,8 @@ export async function findInventoryItem(businessId, name) {
   const needle = String(name || '').trim();
   if (!needle) return null;
 
-  const { rows } = await query(
-    `SELECT id, name, unit, qty_on_hand, cost_price, price, low_stock_threshold
-       FROM items
-      WHERE business_id = $1
-        AND archived_at IS NULL
-        AND name ILIKE $2
-      ORDER BY CASE WHEN lower(name) = lower($3) THEN 0
-                    WHEN name ILIKE $4 THEN 1
-                    ELSE 2 END,
-               length(name)
-      LIMIT 1`,
-    [businessId, `%${needle}%`, needle, `${needle}%`]
-  );
-  const row = rows[0];
+  const items = await getInventory(businessId);
+  const row = matchCatalogItem(needle, items);
   if (!row) return null;
   return {
     ...row,
@@ -240,8 +229,8 @@ export async function answerQuestion(businessId, question) {
         : `On your shelf I can see ${names.join(', ')}${items.length > 4 ? `, and ${items.length - 4} more` : ''}.`;
     return {
       answer:
-        `I am SautiLedger, the voice ledger for ${shop.business_name}. ` +
-        `You speak a sale, credit, restock, or repayment; I look up prices in your books and never invent a number. ` +
+        `I am Halima, the voice of SautiLedger for ${shop.business_name}. ` +
+        `You speak a sale, credit, restock, or repayment. I only record what is already on your shelf, and every number comes from your books. ` +
         `${shelf} ` +
         `Ask how much unga is left, who owes you, what sold best, or how much profit you made this week. ` +
         `On the big mic you can say “sell two unga cash”.`,
@@ -279,7 +268,7 @@ export async function answerQuestion(businessId, question) {
       const items = await getInventory(businessId);
       const names = items.slice(0, 5).map((row) => row.name).join(', ') || 'nothing yet';
       return {
-        answer: `I do not have “${needle}” on the shelf. I currently stock ${names}.`,
+        answer: `${needle} is not in your inventory. I currently stock ${names}.`,
         data: { items },
       };
     }

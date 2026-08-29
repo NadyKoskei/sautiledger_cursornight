@@ -6,12 +6,14 @@ const ToastContext = createContext(null);
 const ICONS = {
   success: CheckCircle2,
   error: AlertTriangle,
+  warn: AlertTriangle,
   info: Info,
 };
 
 const TONES = {
   success: 'bg-grove text-white',
   error: 'bg-danger text-white',
+  warn: 'bg-warn text-white',
   info: 'bg-ink text-white',
 };
 
@@ -24,7 +26,7 @@ export function ToastProvider({ children }) {
 
   const notify = useCallback(
     (message, tone = 'info') => {
-      const id = crypto.randomUUID();
+      const id = globalThis.crypto?.randomUUID?.() || `toast-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       setToasts((current) => [...current, { id, message, tone }]);
       setTimeout(() => dismiss(id), 4500);
     },

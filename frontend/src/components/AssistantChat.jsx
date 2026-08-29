@@ -24,7 +24,7 @@ export function AssistantChat({ className = '', autoFocus = false }) {
   const feedRef = useRef(null);
   const inputRef = useRef(null);
 
-  const introText = `Karibu ${business?.owner_name?.split(' ')[0] || ''}. I am SautiLedger, the voice ledger for your duka. You speak a sale, credit, restock, or repayment; I look up the numbers in your books. Ask what you stock, how much is left, or who owes you.`;
+  const introText = `Karibu ${business?.owner_name?.split(' ')[0] || ''}. I am Halima, the voice of SautiLedger. I only record what is already on your shelf. Ask what you stock, how much is left, or who owes you.`;
 
   const [messages, setMessages] = useState([
     {
@@ -49,7 +49,7 @@ export function AssistantChat({ className = '', autoFocus = false }) {
           {
             id: 'intro',
             role: 'assistant',
-            text: `Karibu ${business?.owner_name?.split(' ')[0] || ''}. I am SautiLedger for ${business?.business_name || 'your shop'}. I can see ${items.length} items on the shelf, including ${names.join(', ')}. Ask me how much is left, who owes you, or say “sell two ${first.name.toLowerCase()} cash” on the mic.`,
+            text: `Karibu ${business?.owner_name?.split(' ')[0] || ''}. I am Halima for ${business?.business_name || 'your shop'}. I can see ${items.length} items on the shelf, including ${names.join(', ')}. I will not record a sale unless that product is in stock.`,
             data: { items },
           },
         ]);
@@ -73,7 +73,7 @@ export function AssistantChat({ className = '', autoFocus = false }) {
 
       stopSpeech();
       setDraft('');
-      setMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text }]);
+      setMessages((current) => [...current, { id: crypto.randomUUID?.() || `u-${Date.now()}`, role: 'user', text }]);
       setBusy(true);
 
       try {
@@ -81,12 +81,12 @@ export function AssistantChat({ className = '', autoFocus = false }) {
         playElevenLabsAudio(answer, { language: business?.language });
         setMessages((current) => [
           ...current,
-          { id: crypto.randomUUID(), role: 'assistant', text: answer, data },
+          { id: crypto.randomUUID?.() || `a-${Date.now()}`, role: 'assistant', text: answer, data },
         ]);
       } catch (error) {
         setMessages((current) => [
           ...current,
-          { id: crypto.randomUUID(), role: 'assistant', text: error.message, error: true },
+          { id: crypto.randomUUID?.() || `e-${Date.now()}`, role: 'assistant', text: error.message, error: true },
         ]);
       } finally {
         setBusy(false);

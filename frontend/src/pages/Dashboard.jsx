@@ -118,7 +118,7 @@ export default function Dashboard() {
 
         <section className="mt-8 flex flex-col items-center">
           <MicButton onClick={() => navigate('/sales')} label="Record a sale by voice" />
-          <p className="mt-4 text-center text-sm text-dust">
+          <p className="mt-4 text-center text-base text-dust">
             Tap and say <span className="text-ink">“sell two unga cash”</span>
           </p>
         </section>

@@ -8,6 +8,8 @@
  * Swap `parseIntent` for an OpenAI / Gemma call that returns the same schema.
  */
 
+import { isPlaceholderName, matchCatalogItem } from './matchItem.js';
+
 const NUMBER_WORDS = {
   one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8,
   nine: 9, ten: 10, eleven: 11, twelve: 12, fifteen: 15, twenty: 20,
@@ -26,7 +28,7 @@ const NOISE_WORDS = new Set([
 ]);
 
 const SALE_WORDS =
-  /\b(sell|sold|sale|nimeuza|uza|nauza|took|take|takes|taken|bought|buy|buys)\b/;
+  /\b(sell|sold|sale|nimeuza|uza|nauza|took|take|takes|taken|bought|buy|buys|give|given|nimepea|peana)\b/;
 const CUSTOMER_FIRST_SALE = /\b(took|take|takes|taken|bought|buy|buys)\b/;
 const TOOK_WORDS = /\b(took|take|takes|taken|amechukua|alichukua|chukua)\b/;
 const CREDIT_WORDS = /\b(credit|deni|mkopo|nikope|akope|on\s+account)\b/;
@@ -120,45 +122,42 @@ function extractItems(text, catalog = [], customerName = null) {
   const unitMatcher = new RegExp(`\\b(${UNIT_WORDS})\\b`);
   const segments = body.split(/\s+(?:and|na|plus)\s+/).filter(Boolean);
   const items = [];
+  let placeholder = false;
+  let heardQty = null;
 
   for (const segment of segments) {
     const numbers = segment.match(/\d+(?:\.\d+)?/g);
-    const name = resolveCatalogName(cleanName(segment), catalog);
-    if (!name) continue;
-
     const qty = numbers ? Number(numbers[0]) : 1;
+    if (Number.isFinite(qty) && qty > 0) heardQty = qty;
+
+    const spoken = cleanName(segment);
+    if (isPlaceholderName(spoken)) {
+      placeholder = true;
+      continue;
+    }
+    if (!spoken) continue;
     if (!Number.isFinite(qty) || qty <= 0) continue;
 
     const unit = segment.match(unitMatcher);
-    items.push({ name, qty, unit: unit ? unit[1] : null });
+    const resolved = resolveCatalogName(spoken, catalog);
+    items.push({
+      name: resolved.name,
+      qty,
+      unit: resolved.unit || (unit ? unit[1] : null),
+      matched: resolved.matched,
+    });
   }
 
-  return items;
+  return { items, placeholder, heardQty };
 }
 
 function resolveCatalogName(spoken, catalog) {
-  if (!spoken) return spoken;
-  if (!catalog?.length) return titleCase(spoken);
-
-  const needle = spoken.toLowerCase();
-  let best = null;
-  let bestScore = 0;
-
-  for (const item of catalog) {
-    const name = String(item.name || '').toLowerCase();
-    if (!name) continue;
-    let score = 0;
-    if (name === needle) score = 4;
-    else if (name.startsWith(needle) || needle.startsWith(name)) score = 3;
-    else if (name.includes(needle) || needle.includes(name)) score = 2;
-    else if (name.split(/\s+/).some((part) => part.length > 2 && needle.includes(part))) score = 1;
-    if (score > bestScore) {
-      best = item.name;
-      bestScore = score;
-    }
+  if (!spoken) return { name: '', matched: false, unit: null };
+  const match = matchCatalogItem(spoken, catalog);
+  if (match) {
+    return { name: match.name, matched: true, unit: match.unit || null };
   }
-
-  return best || titleCase(spoken);
+  return { name: titleCase(spoken), matched: false, unit: null };
 }
 
 const QUESTION_CUE =
@@ -186,16 +185,39 @@ export function parseIntent(transcript, { catalog = [] } = {}) {
   }
 
   const customerName = extractCustomer(text);
+  const extracted =
+    action === 'repayment' ? { items: [], placeholder: false, heardQty: null } : extractItems(text, catalog, customerName);
+
   const intent = {
     action,
-    items: action === 'repayment' ? [] : extractItems(text, catalog, customerName),
+    items: extracted.items,
     payment_type: paymentType,
     customer_name: customerName,
+    clarification: null,
   };
 
   if (action === 'repayment') {
     const amount = text.match(/(\d+(?:\.\d+)?)/);
     intent.amount = amount ? Number(amount[1]) : null;
+  }
+
+  if (['sale', 'credit', 'restock'].includes(action) && extracted.items.length === 0) {
+    if (extracted.placeholder && customerName) {
+      intent.clarification = `Which product did ${customerName} take?`;
+    } else if (extracted.placeholder) {
+      intent.clarification = 'Which product was that?';
+    } else if (extracted.heardQty) {
+      intent.clarification = `I heard ${extracted.heardQty}. Which product?`;
+    } else if (customerName) {
+      intent.clarification = `Which product did ${customerName} take?`;
+    } else {
+      intent.clarification = 'I couldn’t find that product in your inventory.';
+    }
+  }
+
+  if (!intent.clarification && extracted.items.some((item) => item.matched === false)) {
+    const missing = extracted.items.find((item) => !item.matched);
+    intent.clarification = `${missing.name} is not in your inventory.`;
   }
 
   return intent;
@@ -209,7 +231,7 @@ export function classifyQuestion(question) {
   const text = String(question || '').toLowerCase();
 
   if (
-    /\b(help|what can you|who are you|what are you|what do you do|how do (i|you)|how does|sautiledger|this app|this application|voice ledger|karibu)\b/.test(
+    /\b(help|what can you|who are you|what are you|what do you do|how do (i|you)|how does|sautiledger|halima|this app|this application|voice ledger|karibu)\b/.test(
       text
     )
   ) {
