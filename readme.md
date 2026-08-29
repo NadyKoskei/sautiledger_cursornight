@@ -79,7 +79,53 @@ npm run dev
 
 Open `http://localhost:5173` in Chrome or Edge — the mic uses the Web Speech API.
 
-### Install as an app
+## Deploy on Render
+
+Postgres is created in the Render dashboard first. `render.yaml` only deploys the API and the frontend, then connects them to that existing database.
+
+1. Push this repo to GitHub (`development`).
+2. Copy the database **Internal** URL: dashboard → your Postgres → **Connections** → Internal Database URL.
+3. **New → Blueprint**, pick this repo.
+4. When prompted, paste:
+   - `DATABASE_URL` — that Internal URL
+   - `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID`
+5. Apply. First API deploy creates tables (`node init-db.mjs`) and seeds demo shops once (`node seed.mjs`).
+
+If the API service already exists, skip Blueprint and set **Environment** on **sautiledger-api**:
+
+- `DATABASE_URL` = Internal Database URL
+- `DATABASE_SSL` = `true`
+
+Then **Manual Deploy**.
+
+Open the **sautiledger** static URL (not the API URL). Login:
+
+- Open shop: `0701891234` (no PIN)
+- Demo shop: `0712345678` / PIN `1234`
+
+### Seed the Render database
+
+Seeding replaces the two demo shops only. It does not drop other shops.
+
+**On Render (API already deployed)**  
+Dashboard → **sautiledger-api** → **Shell**:
+
+```bash
+node init-db.mjs
+node seed.mjs
+```
+
+**From your laptop**  
+Use the database **External** URL (Internal only works inside Render):
+
+```bash
+cd backend
+DATABASE_URL='postgresql://USER:PASSWORD@HOST/DATABASE' DATABASE_SSL=true npm run db:setup
+```
+
+Do not put real keys in `render.yaml`.
+
+## Install as an app
 
 Chrome and Android show an install banner. On iPhone use Safari → Share → **Add to Home Screen**. The app shell works offline; recording a sale needs the backend, because only the database is allowed to price anything.
 

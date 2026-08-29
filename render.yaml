@@ -1,0 +1,50 @@
+# SautiLedger on Render: API + static frontend.
+# Postgres is created separately in the dashboard — paste its Internal URL
+# when Render asks for DATABASE_URL. Do not add another database here.
+
+services:
+  - type: web
+    name: sautiledger-api
+    runtime: node
+    rootDir: backend
+    branch: development
+    buildCommand: npm install
+    preDeployCommand: node init-db.mjs
+    initialDeployHook: node seed.mjs
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_SSL
+        value: 'true'
+      - key: DATABASE_URL
+        sync: false
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        sync: false
+      - key: ELEVENLABS_MODEL_ID
+        value: eleven_multilingual_v2
+      - key: ELEVENLABS_STT_MODEL_ID
+        value: scribe_v2
+
+  - type: web
+    name: sautiledger
+    runtime: static
+    rootDir: frontend
+    branch: development
+    buildCommand: npm install && npm run build
+    staticPublishPath: frontend/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: sautiledger-api
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
